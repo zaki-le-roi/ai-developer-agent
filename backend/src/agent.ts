@@ -7,15 +7,20 @@ import { remember } from './memory-store.js';
 export async function handleAgentRequest(request: AgentRequest): Promise<AgentResponse> {
   const plan = createPlan(request.message);
   const projectId = request.projectId ?? null;
-  remember(projectId, 'task', request.message);
+
+  if (projectId) {
+    remember(projectId, 'task', request.message);
+  }
 
   const execution = prepareExecution(plan, { level: 'sandbox' });
   if (execution.status !== 'awaiting_execution') {
     return { success: false, projectId, plan, execution };
   }
 
-  const test = await sandboxCheck(request.projectId);
-  remember(projectId, 'test', test.ok ? 'نجح اختبار Sandbox.' : 'فشل اختبار Sandbox.');
+  const test = await sandboxCheck(projectId ?? undefined);
+  if (projectId) {
+    await remember(projectId, 'test', test.ok ? 'نجح اختبار Sandbox.' : 'فشل اختبار Sandbox.');
+  }
 
   return {
     success: test.ok,
