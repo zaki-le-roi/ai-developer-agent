@@ -3,6 +3,7 @@ import type { AgentRequest } from '../../shared/contracts.js';
 import { handleAgentRequest } from './agent.js';
 import { createProject, getProject, listProjects } from './project-store.js';
 import { recall } from './memory-store.js';
+import { listExecutionLogs } from './execution-store.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
@@ -33,6 +34,15 @@ app.get('/api/projects/:id', async (req, res) => {
     return;
   }
   res.json({ success: true, project });
+});
+
+app.get('/api/projects/:id/executions', async (req, res) => {
+  const project = await getProject(req.params.id);
+  if (!project) {
+    res.status(404).json({ success: false, error: 'project not found' });
+    return;
+  }
+  res.json({ success: true, executions: await listExecutionLogs(project.id) });
 });
 
 app.get('/api/projects/:id/memory', async (req, res) => {
