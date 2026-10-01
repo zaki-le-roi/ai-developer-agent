@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "BMZ AI",
+    "slug": "bmz-ai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "bmzai",
+    "userInterfaceStyle": "dark",
+    "android": {
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
