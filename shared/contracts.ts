@@ -26,5 +26,6 @@ export type AgentResponse = {
     status: 'awaiting_execution' | 'completed' | 'failed';
     message: string;
   };
+  assistantMessage?: string;
   error?: string;
 };
