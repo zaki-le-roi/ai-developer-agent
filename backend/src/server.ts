@@ -16,31 +16,31 @@ app.get('/health', (_req, res) => {
   });
 });
 
-app.post('/api/agent', (req, res) => {
+app.post('/api/agent', async (req, res) => {
   const body = req.body as Partial<AgentRequest>;
   const message = typeof body.message === 'string' ? body.message.trim() : '';
 
   if (!message) {
-    res.status(400).json({
-      success: false,
-      error: 'message is required',
-    });
+    res.status(400).json({ success: false, error: 'message is required' });
     return;
   }
 
-  const result = handleAgentRequest({
-    message,
-    projectId: typeof body.projectId === 'string' ? body.projectId : undefined,
-  });
-
-  res.json(result);
+  try {
+    const result = await handleAgentRequest({
+      message,
+      projectId: typeof body.projectId === 'string' ? body.projectId : undefined,
+    });
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع.',
+    });
+  }
 });
 
 app.use((_req, res) => {
-  res.status(404).json({
-    success: false,
-    error: 'Not found',
-  });
+  res.status(404).json({ success: false, error: 'Not found' });
 });
 
 app.listen(PORT, '0.0.0.0', () => {
