@@ -3,9 +3,11 @@ import { createPlan } from './planner.js';
 import { prepareExecution } from './orchestrator.js';
 import { sandboxCheck } from './sandbox-core.js';
 import { remember } from './memory-store.js';
+import { addExecutionLog } from './execution-store.js';
 
 export async function handleAgentRequest(request: AgentRequest): Promise<AgentResponse> {
   const plan = createPlan(request.message);
+  await addExecutionLog(request.projectId ?? null, request.message, 'started');
   const projectId = request.projectId ?? null;
 
   if (projectId) {
@@ -21,6 +23,7 @@ export async function handleAgentRequest(request: AgentRequest): Promise<AgentRe
   if (projectId) {
     await remember(projectId, 'test', test.ok ? 'نجح اختبار Sandbox.' : 'فشل اختبار Sandbox.');
   }
+  await addExecutionLog(projectId, test.ok ? 'تم تنفيذ والتحقق من Sandbox.' : 'فشل التحقق من Sandbox.', test.ok ? 'completed' : 'failed');
 
   return {
     success: test.ok,
