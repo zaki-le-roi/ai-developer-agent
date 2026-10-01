@@ -25,6 +25,7 @@ type AgentResponse = {
   plan?: { steps?: { title: string }[] };
   execution?: { message?: string };
   error?: string;
+  assistantMessage?: string;
 };
 
 const suggestions = [
@@ -72,7 +73,7 @@ export default function HomeScreen() {
         {
           id: Date.now() + 1,
           role: 'agent',
-          text: `${planText}\n\n${data.execution?.message ?? ''}`,
+          text: `${planText}\n\n${data.execution?.message ?? ''}${data.assistantMessage ? `\n\n${data.assistantMessage}` : ''}`,
         },
       ]);
     } catch (error) {
