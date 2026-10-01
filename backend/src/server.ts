@@ -1,15 +1,6 @@
 import express from 'express';
-
-type AgentRequest = {
-  message?: unknown;
-  projectId?: unknown;
-};
-
-type PlanStep = {
-  id: string;
-  title: string;
-  status: 'pending';
-};
+import type { AgentRequest } from '../../shared/contracts.js';
+import { handleAgentRequest } from './agent.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
@@ -21,11 +12,12 @@ app.get('/health', (_req, res) => {
     success: true,
     service: 'BMZ AI Backend',
     status: 'ready',
+    port: PORT,
   });
 });
 
 app.post('/api/agent', (req, res) => {
-  const body = req.body as AgentRequest;
+  const body = req.body as Partial<AgentRequest>;
   const message = typeof body.message === 'string' ? body.message.trim() : '';
 
   if (!message) {
@@ -36,26 +28,12 @@ app.post('/api/agent', (req, res) => {
     return;
   }
 
-  const steps: PlanStep[] = [
-    { id: 'understand', title: 'فهم المهمة والمتطلبات', status: 'pending' },
-    { id: 'plan', title: 'إعداد خطة تنفيذ قابلة للتحقق', status: 'pending' },
-    { id: 'execute', title: 'تنفيذ العمليات المسموح بها داخل بيئة آمنة', status: 'pending' },
-    { id: 'test', title: 'اختبار النتيجة ومعالجة الأخطاء', status: 'pending' },
-  ];
-
-  res.json({
-    success: true,
-    projectId: typeof body.projectId === 'string' ? body.projectId : null,
+  const result = handleAgentRequest({
     message,
-    plan: {
-      goal: message,
-      steps,
-    },
-    execution: {
-      status: 'awaiting_execution',
-      message: 'تم استلام المهمة وإعداد الخطة. التنفيذ الفعلي سيستخدم طبقة الصلاحيات وبيئة Sandbox.',
-    },
+    projectId: typeof body.projectId === 'string' ? body.projectId : undefined,
   });
+
+  res.json(result);
 });
 
 app.use((_req, res) => {
