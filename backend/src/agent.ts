@@ -4,6 +4,7 @@ import { prepareExecution } from './orchestrator.js';
 import { sandboxCheck } from './sandbox-core.js';
 import { remember } from './memory-store.js';
 import { addExecutionLog } from './execution-store.js';
+import { createModelProvider } from './model-provider.js';
 
 export async function handleAgentRequest(request: AgentRequest): Promise<AgentResponse> {
   const plan = createPlan(request.message);
@@ -20,6 +21,16 @@ export async function handleAgentRequest(request: AgentRequest): Promise<AgentRe
   }
 
   const test = await sandboxCheck(projectId ?? undefined);
+  let assistantMessage: string | undefined;
+  if (process.env.OPENAI_API_KEY) {
+    try {
+      assistantMessage = await createModelProvider().generate(
+        `أنت BMZ AI. حلل طلب المستخدم التالي وقدّم توجيهًا عمليًا موجزًا للخطوة التالية بعد التحقق من Sandbox:\n${request.message}`,
+      );
+    } catch (error) {
+      await addExecutionLog(projectId, error instanceof Error ? error.message : 'فشل مزود النموذج.', 'failed');
+    }
+  }
   if (projectId) {
     await remember(projectId, 'test', test.ok ? 'نجح اختبار Sandbox.' : 'فشل اختبار Sandbox.');
   }
@@ -29,6 +40,7 @@ export async function handleAgentRequest(request: AgentRequest): Promise<AgentRe
     success: test.ok,
     projectId,
     plan,
+    assistantMessage,
     execution: {
       status: test.ok ? 'completed' : 'failed',
       message: test.ok
