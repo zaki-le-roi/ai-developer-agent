@@ -26,15 +26,12 @@ async function migrateLegacy(){
     const raw=JSON.parse(await fs.readFile(file,'utf8')) as unknown;
     if(!Array.isArray(raw))return;
     const insert=db.prepare('INSERT OR IGNORE INTO tasks(id,user_id,project_id,status,message,created_at,updated_at,result_json,error) VALUES(?,?,?,?,?,?,?,?,?)');
-    const tx=db.transaction((items:unknown[])=>{
-      for(const item of items){
+    for(const item of raw){
         if(!item||typeof item!=='object')continue;
         const t=item as Record<string,unknown>;
         if(typeof t.id!=='string'||typeof t.userId!=='string'||typeof t.message!=='string'||typeof t.status!=='string'||typeof t.createdAt!=='string'||typeof t.updatedAt!=='string')continue;
         insert.run(t.id,t.userId,typeof t.projectId==='string'?t.projectId:null,t.status,t.message,t.createdAt,t.updatedAt,t.result===undefined?null:JSON.stringify(t.result),typeof t.error==='string'?t.error:null);
-      }
-    });
-    tx(raw);
+    }
   }catch{}
 }
 
