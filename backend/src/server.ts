@@ -264,12 +264,12 @@ app.get('/api/projects/:id/memory', async (req, res) => {
 
 app.post('/api/sessions', async (req, res) => {
   const projectId = typeof req.body?.projectId === 'string' ? req.body.projectId : null;
-  const session = await createSession(projectId);
+  const session = await createSession(res.locals.user.id,projectId);
   res.status(201).json({ success: true, session });
 });
 
 app.get('/api/sessions/:id', async (req, res) => {
-  const session = await getSession(req.params.id);
+  const session = await getSession(res.locals.user.id,req.params.id);
   if (!session) {
     res.status(404).json({ success: false, error: 'session not found' });
     return;
@@ -297,12 +297,12 @@ app.post('/api/agent', async (req, res) => {
     const request: AgentRequest = { ...body, userId: res.locals.user.id, message };
     const sessionId = typeof request.sessionId === 'string' ? request.sessionId : undefined;
     if (sessionId) {
-      const session = await getSession(sessionId);
+      const session = await getSession(res.locals.user.id,sessionId);
       if (!session) {
         res.status(404).json({ success: false, error: 'session not found' });
         return;
       }
-      await touchSession(sessionId);
+      await touchSession(res.locals.user.id,sessionId);
     }
     const result = await handleAgentRequest(request);
     res.json(result);
