@@ -11,6 +11,7 @@ import { authorizeAction } from './orchestrator.js';
 import type { ModelProvider } from './model-provider.js';
 import { createSandboxWorkspace, type SandboxWorkspace } from './sandbox-core.js';
 import { scaffoldAndroidApp } from './app-builder.js';
+import { listWorkspaceFiles, readWorkspaceFile } from './workspace-service.js';
 import {
   readFileInSandbox,
   runCommandInSandbox,
@@ -53,6 +54,11 @@ async function executeAction(
 
     if (action.type === 'inspect_workspace') return inspectWorkspace(workspace);
 
+    if (action.type === 'list_files') {
+      const result = await listWorkspaceFiles(projectId ?? workspaceProjectId);
+      return { action: action.type, ok: true, summary: `تم العثور على ${result.files.length} ملفًا.`, stdout: result.files.join('\\n') };
+    }
+
     if (action.type === 'read_file') {
       const result = await readFileInSandbox(projectId, action.path);
       return {
@@ -61,6 +67,11 @@ async function executeAction(
         summary: `تمت قراءة الملف ${action.path}.`,
         stdout: maskSecrets(result.content.slice(0, 20000)),
       };
+    }
+
+    if (action.type === 'preview_web') {
+      const result = await readWorkspaceFile(projectId ?? workspaceProjectId, 'index.html');
+      return { action: action.type, ok: true, summary: 'تم تجهيز index.html للمعاينة.', stdout: result.content.slice(0, 100000) };
     }
 
     if (action.type === 'scaffold_app') {
@@ -144,8 +155,9 @@ function isAction(value: unknown): value is AgentAction {
   if (!value || typeof value !== 'object') return false;
   const item = value as Record<string, unknown>;
   if (typeof item.type !== 'string') return false;
-  if (!['inspect_workspace', 'read_file', 'write_file', 'run_command', 'scaffold_app', 'build_android', 'test'].includes(item.type)) return false;
+  if (!['inspect_workspace', 'list_files', 'read_file', 'write_file', 'run_command', 'scaffold_app', 'build_android', 'preview_web', 'test'].includes(item.type)) return false;
   if (item.type === 'read_file' && typeof item.path !== 'string') return false;
+  if (item.type === 'preview_web') return true;
   if (item.type === 'write_file' && (typeof item.path !== 'string' || typeof item.content !== 'string')) return false;
   if (item.type === 'scaffold_app') return item.platform === undefined || item.platform === 'android';
   if (item.type === 'build_android') return true;
