@@ -10,7 +10,7 @@ import { requestApproval, consumeApproval } from './approval-store.js';
 export async function handleAgentRequest(request: AgentRequest): Promise<AgentResponse> {
   const projectId = request.projectId ?? null;
   const provider = createModelProvider();
-  const permissionLevel = request.permissionLevel ?? 'sandbox';
+  const permissionLevel = request.permissionLevel ?? (/(commit|push|deploy|نشر|رفع|حذف نهائي|delete permanently|production)/i.test(request.message) ? 'approval_required' : 'sandbox');
   const plan = await createPlan(request.message, provider);
 
   await addExecutionLog(projectId, request.message, 'started');
