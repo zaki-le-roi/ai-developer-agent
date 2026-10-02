@@ -6,3 +6,8 @@ export async function branches(url:string){const p=parse(url);return api<any[]>(
 export async function issues(url:string){const p=parse(url);return api<any[]>(`https://api.github.com/repos/${p.owner}/${p.name}/issues?state=open&per_page=100`)}
 export async function pullRequests(url:string){const p=parse(url);return api<any[]>(`https://api.github.com/repos/${p.owner}/${p.name}/pulls?state=open&per_page=100`)}
 export async function actions(url:string){const p=parse(url);return api<any>(`https://api.github.com/repos/${p.owner}/${p.name}/actions/runs?per_page=20`)}
+
+export async function createIssue(url:string,title:string,body:string){const p=parse(url);return api<any>(`https://api.github.com/repos/${p.owner}/${p.name}/issues`,{method:'POST',body:JSON.stringify({title,body})})}
+export async function commentIssue(url:string,number:number,body:string){const p=parse(url);return api<any>(`https://api.github.com/repos/${p.owner}/${p.name}/issues/${number}/comments`,{method:'POST',body:JSON.stringify({body})})}
+export async function createPullRequest(url:string,title:string,body:string,head:string,base:string){const p=parse(url);return api<any>(`https://api.github.com/repos/${p.owner}/${p.name}/pulls`,{method:'POST',body:JSON.stringify({title,body,head,base})})}
+export async function createBranch(url:string,name:string,from:string){const p=parse(url);const ref=await api<any>(`https://api.github.com/repos/${p.owner}/${p.name}/git/ref/heads/${encodeURIComponent(from)}`);return api<any>(`https://api.github.com/repos/${p.owner}/${p.name}/git/refs`,{method:'POST',body:JSON.stringify({ref:`refs/heads/${name}`,sha:ref.object.sha})})}
