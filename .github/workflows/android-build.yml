@@ -23,11 +23,12 @@ jobs:
         run: |
           base64 -d root.gradle.b64 > build.gradle
           base64 -d app/build.gradle.b64 > app/build.gradle
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
       - name: Install Android SDK
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
         run: |
-          sdkmanager --licenses < /dev/null || true
+          export PATH="$ANDROID_HOME/cmdline-tools/16.0/bin:$ANDROID_HOME/platform-tools:$PATH"
+          yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - name: Build debug APK
         run: gradle --no-daemon assembleDebug
