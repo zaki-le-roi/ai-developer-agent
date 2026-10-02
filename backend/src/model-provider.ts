@@ -1,46 +1,5 @@
-import OpenAI from 'openai';
-
-export type ModelProvider = {
-  name: string;
-  generate: (prompt: string) => Promise<string>;
-};
-
-export function createOpenAIProvider(): ModelProvider {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error('OPENAI_API_KEY غير مُعد في بيئة التشغيل.');
-  }
-
-  const model = process.env.OPENAI_MODEL?.trim();
-  if (!model) {
-    throw new Error('OPENAI_MODEL غير مُعد في بيئة التشغيل.');
-  }
-
-  const client = new OpenAI({ apiKey });
-
-  return {
-    name: `openai:${model}`,
-    async generate(prompt: string) {
-      const response = await client.responses.create({
-        model,
-        input: [{ role: 'user', content: prompt }],
-      });
-      return response.output_text;
-    },
-  };
-}
-
-export function createUnavailableProvider(): ModelProvider {
-  return {
-    name: 'unconfigured',
-    async generate() {
-      throw new Error('مزود نموذج الذكاء الاصطناعي غير مُعد بعد.');
-    },
-  };
-}
-
-export function createModelProvider(): ModelProvider {
-  return process.env.OPENAI_API_KEY && process.env.OPENAI_MODEL?.trim()
-    ? createOpenAIProvider()
-    : createUnavailableProvider();
-}
+export type ModelProvider={name:string;generate(prompt:string):Promise<string>};
+function env(name:string){const v=process.env[name]?.trim();return v||undefined}
+export function createOllamaProvider():ModelProvider|null{const base=env('OLLAMA_BASE_URL')??'http://127.0.0.1:11434';const model=env('OLLAMA_MODEL');if(!model)return null;return{name:`ollama:${model}`,async generate(prompt){const r=await fetch(`${base.replace(/\\/$/,'')}/api/generate`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model,prompt,stream:false})});if(!r.ok)throw new Error(`Ollama HTTP ${r.status}`);const d=await r.json() as {response?:unknown};if(typeof d.response!=='string')throw new Error('Ollama لم يُرجع نصًا صالحًا.');return d.response}}}
+export function createOpenAICompatibleProvider():ModelProvider|null{const base=env('MODEL_BASE_URL');const model=env('MODEL_NAME');const key=env('MODEL_API_KEY');if(!base||!model)return null;return{name:`openai-compatible:${model}`,async generate(prompt){const r=await fetch(`${base.replace(/\\/$/,'')}/chat/completions`,{method:'POST',headers:{'Content-Type':'application/json',...(key?{Authorization:`Bearer ${key}`}: {})},body:JSON.stringify({model,messages:[{role:'user',content:prompt}],temperature:0})});if(!r.ok)throw new Error(`Model HTTP ${r.status}`);const d=await r.json() as {choices?:Array<{message?:{content?:unknown}}>};const c=d.choices?.[0]?.message?.content;if(typeof c!=='string')throw new Error('Model لم يُرجع نصًا صالحًا.');return c}}}
+export function createModelProvider():ModelProvider{return createOllamaProvider()??createOpenAICompatibleProvider()??{name:'unconfigured',async generate(){throw new Error('لم يتم ضبط Model Runtime. اضبط OLLAMA_MODEL أو MODEL_BASE_URL/MODEL_NAME.')}}}
