@@ -3,7 +3,24 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { createSandboxWorkspace } from './sandbox-core.js';
 
-const allowed = new Set(['node', 'npm', 'npx', 'tsc']);
+const allowed = new Set(['npm', 'npx', 'tsc']);
+
+function validateCommand(command: string, args: string[]): void {
+  if (!allowed.has(command)) throw new Error('الأمر غير مسموح داخل Sandbox.');
+  const first = args[0] ?? '';
+  if (command === 'npm' && !['install', 'ci', 'test', 'run'].includes(first)) {
+    throw new Error('يسمح لـ npm فقط بـ install أو ci أو test أو run داخل Sandbox.');
+  }
+  if (command === 'npm' && first === 'run' && !['build', 'test', 'lint', 'typecheck'].includes(args[1] ?? '')) {
+    throw new Error('سكريبت npm غير مسموح داخل Sandbox.');
+  }
+  if (command === 'npx' && first !== 'tsc') {
+    throw new Error('يسمح لـ npx فقط بتشغيل tsc داخل Sandbox.');
+  }
+  if (command === 'tsc' && args.some((arg) => arg.startsWith('--project=') || arg === '--build')) {
+    throw new Error('خيارات tsc هذه غير مسموحة داخل Sandbox.');
+  }
+}
 const MAX_OUTPUT = 100000;
 const MAX_TIMEOUT_MS = 30000;
 
@@ -52,7 +69,7 @@ export async function runCommandInSandbox(
   command: string,
   args: string[] = [],
 ) {
-  if (!allowed.has(command)) throw new Error('الأمر غير مسموح داخل Sandbox.');
+  validateCommand(command, args);
   if (args.length > 50 || args.some((arg) => arg.length > 4000)) {
     throw new Error('معطيات الأمر تتجاوز الحدود المسموح بها.');
   }
