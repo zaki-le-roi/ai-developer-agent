@@ -44,7 +44,7 @@ export function stopPreview(projectId:string){
   item.process.kill('SIGTERM');previews.delete(projectId);return true;
 }
 
-export function proxyPreview(item:Preview,req:http.IncomingMessage,res:http.ServerResponse,pathName:string){
+export function proxyPreview(item:Preview,req:any,res:any,pathName:string){
   const request=http.request({hostname:'127.0.0.1',port:item.port,path:pathName||'/',method:req.method,headers:{...req.headers,host:`127.0.0.1:${item.port}`}},upstream=>{
     res.writeHead(upstream.statusCode??502,upstream.headers);upstream.pipe(res);
   });
