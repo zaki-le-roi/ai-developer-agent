@@ -35,3 +35,16 @@
 - `POST /api/approvals/:id/approve`
 
 Sensitive write operations should be placed behind authentication and permission middleware before public deployment.
+
+
+## إضافات التشغيل الحالية
+- `GET /api/github/oauth/start` — يبدأ GitHub OAuth للمستخدم المصادق.
+- `GET /api/github/oauth/callback` — يستقبل OAuth callback ويحفظ credential مشفرًا.
+- `GET /api/github/oauth/status` — حالة اتصال GitHub.
+- `GET/POST/PUT/DELETE /api/workflows...` — إدارة Workflows محفوظة لكل مستخدم.
+- `POST /api/workflows/run` — تنفيذ Workflow محفوظ أو تعريف Workflow مباشر.
+- `POST /api/projects/:id/preview/start` و`/preview/stop` — دورة حياة Preview حقيقي داخل Sandbox.
+- `GET /preview/:id/...` — Proxy للـ Preview بعد token تحقق.
+- `POST /api/tasks/:id/cancel` — إلغاء مهمة معروفة للمستخدم.
+- `backend/src/worker.ts` / `npm run worker` — Worker منفصل لطوابير المهام.
+- Model Runtime يدعم Ollama عبر `OLLAMA_BASE_URL` و`OLLAMA_MODEL` أو OpenAI-compatible endpoint اختياري.
