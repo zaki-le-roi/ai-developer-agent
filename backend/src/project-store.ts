@@ -7,6 +7,7 @@ export type Project = {
   name: string;
   createdAt: string;
   repositoryUrl?: string;
+  userId?: string;
 };
 
 const dataDir = path.resolve(process.env.BMZ_DATA_ROOT ?? path.join(process.cwd(), 'backend', 'data'));
@@ -29,13 +30,14 @@ async function save(projects: Project[]): Promise<void> {
   await fs.rename(temp, dataFile);
 }
 
-export async function createProject(name: string, repositoryUrl?: string): Promise<Project> {
+export async function createProject(name: string, repositoryUrl?: string, userId?: string): Promise<Project> {
   const projects = await load();
   const project = {
     id: randomUUID(),
     name: name.trim().slice(0, 120) || 'مشروع جديد',
     createdAt: new Date().toISOString(),
     ...(repositoryUrl ? { repositoryUrl } : {}),
+    ...(userId ? { userId } : {}),
   };
   projects.push(project);
   await save(projects);
