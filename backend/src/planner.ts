@@ -47,8 +47,7 @@ function fallbackPlan(goal: string): AgentPlan {
 }
 
 function extractJson(text: string): unknown {
-  const fenced = text.match(/\`\`\`(?:json)?\\s*([\\s\\S]*?)\\s*\`\`\`/i);
-  const candidate = fenced?.[1] ?? text;
+  const candidate = text;
   const start = candidate.indexOf('{');
   const end = candidate.lastIndexOf('}');
   if (start < 0 || end <= start) throw new Error('لم يُرجع مكوّن الاستدلال خطة JSON صالحة.');
