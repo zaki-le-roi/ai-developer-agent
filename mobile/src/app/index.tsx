@@ -125,11 +125,10 @@ export default function HomeScreen() {
 
       const data = (await response.json()) as AgentResponse;
 
-      if (data.approval) {
-        setPendingApproval(data.approval);
-        setMessages((current) => [...current, { id: Date.now() + 1, role: 'agent', text: `مطلوب موافقة قبل التنفيذ.
-
-${data.approval.reason}` }]);
+      const approval = data.approval;
+      if (approval) {
+        setPendingApproval(approval);
+        setMessages((current) => [...current, { id: Date.now() + 1, role: 'agent', text: `مطلوب موافقة قبل التنفيذ.\n\n${approval.reason}` }]);
         return;
       }
       if (!response.ok || !data.success) throw new Error(data.error || data.execution?.message || 'تعذر تنفيذ الطلب.');
