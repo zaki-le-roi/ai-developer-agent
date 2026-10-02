@@ -42,10 +42,11 @@ export async function handleAgentRequest(request: AgentRequest): Promise<AgentRe
   }
 
   const executionGate = prepareExecution(plan, { level: permissionLevel });
-  if (executionGate.status !== 'awaiting_execution') {
+  if (executionGate.status === 'awaiting_execution') {
     return {
       success: false,
       projectId,
+      sessionId: request.sessionId,
       plan,
       execution: {
         status: 'failed',
@@ -101,6 +102,7 @@ export async function handleAgentRequest(request: AgentRequest): Promise<AgentRe
   return {
     success: core.status === 'completed',
     projectId,
+    sessionId: request.sessionId,
     plan,
     assistantMessage,
     execution: {
