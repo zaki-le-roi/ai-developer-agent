@@ -7,6 +7,7 @@ export type AgentAction =
   | { type: 'list_files' }
   | { type: 'read_file'; path: string }
   | { type: 'write_file'; path: string; content: string }
+  | { type: 'delete_file'; path: string }
   | { type: 'run_command'; command: string; args?: string[] }
   | { type: 'scaffold_app'; platform?: 'android' }
   | { type: 'build_android' }
