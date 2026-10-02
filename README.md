@@ -8,7 +8,7 @@ BMZ AI is a real mobile developer-agent platform.
 
 - `mobile/` — Expo/React Native phone application and control surface.
 - `backend/` — independent Node.js/TypeScript API on port **4000**.
-- `sandbox/` — isolated execution layer.
+- `sandbox/` — controlled workspace and command-execution layer; it is not a full OS/container isolation boundary.
 - `shared/` — shared contracts.
 - `web/` — legacy/reference code; it is not used as the BMZ AI backend.
 
@@ -24,7 +24,7 @@ BMZ AI is a real mobile developer-agent platform.
 ## Target execution flow
 
 ```
-Phone → Backend → Agent → Planner → Orchestrator → Permissions → Sandbox → Tests → Result → Phone
+Phone → BMZ AI Core → Planner → Orchestrator → Permissions → Workspace/Sandbox → Tests → Repair Loop → Result → Phone
 ```
 
 Sensitive operations require explicit permission. Secrets belong on the backend, never in the mobile application.
