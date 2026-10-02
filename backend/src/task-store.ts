@@ -11,4 +11,5 @@ async function save(x:Task[]){await fs.mkdir(dir,{recursive:true});const t=file+
 export async function createTask(userId:string,projectId:string|null,message:string){const now=new Date().toISOString();const task:Task={id:randomUUID(),userId,projectId,message,status:'pending',createdAt:now,updatedAt:now};const x=await load();x.push(task);await save(x);return task}
 export async function getTask(id:string,userId:string){return(await load()).find(x=>x.id===id&&x.userId===userId)??null}
 export async function listTasks(userId:string,projectId?:string){return(await load()).filter(t=>t.userId===userId&&(!projectId||t.projectId===projectId))}
+export async function listAllTasks(){return load()}
 export async function updateTask(id:string,userId:string,patch:Partial<Task>){const x=await load();const i=x.findIndex(t=>t.id===id&&t.userId===userId);if(i<0)throw new Error('task not found');x[i]={...x[i],...patch,updatedAt:new Date().toISOString()};await save(x);return x[i]}
