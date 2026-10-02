@@ -43,7 +43,7 @@ function extractJson(text: string): unknown {
 function isAction(value: unknown): value is AgentAction {
   if (!value || typeof value !== 'object') return false;
   const item = value as Record<string, unknown>;
-  if (!['inspect_workspace', 'list_files', 'read_file', 'write_file', 'run_command', 'scaffold_app', 'build_android', 'preview_web', 'test'].includes(String(item.type))) return false;
+  if (!['inspect_workspace', 'list_files', 'read_file', 'write_file', 'run_command', 'scaffold_app', 'build_android', 'preview_web', 'github_commit', 'test'].includes(String(item.type))) return false;
   if (item.type === 'read_file') return typeof item.path === 'string';
   if (item.type === 'write_file') return typeof item.path === 'string' && typeof item.content === 'string';
   if (item.type === 'run_command') {
@@ -60,7 +60,7 @@ export async function createPlan(goal: string, provider?: ModelProvider): Promis
     const raw = extractJson(await provider.generate([
       'أنت مخطط BMZ AI.',
       'أنشئ خطة تنفيذ فعلية.',
-      'الأنواع المسموحة فقط: inspect_workspace, list_files, read_file, write_file, run_command, scaffold_app, build_android, preview_web, test.',
+      'الأنواع المسموحة فقط: inspect_workspace, list_files, read_file, write_file, run_command, scaffold_app, build_android, preview_web, github_commit, test.',
       'أرجع JSON فقط.',
       `الطلب: ${goal}`,
     ].join('\\n'))) as Record<string, unknown>;
