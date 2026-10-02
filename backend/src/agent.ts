@@ -1,51 +1,90 @@
 import type { AgentResponse, AgentRequest } from '../../shared/contracts.js';
 import { createPlan } from './planner.js';
 import { prepareExecution } from './orchestrator.js';
-import { sandboxCheck } from './sandbox-core.js';
+import { runCoreLoop } from './core-loop.js';
 import { remember } from './memory-store.js';
 import { addExecutionLog } from './execution-store.js';
 import { createModelProvider } from './model-provider.js';
 
 export async function handleAgentRequest(request: AgentRequest): Promise<AgentResponse> {
-  const plan = createPlan(request.message);
-  await addExecutionLog(request.projectId ?? null, request.message, 'started');
   const projectId = request.projectId ?? null;
+  const plan = createPlan(request.message);
 
+  await addExecutionLog(projectId, request.message, 'started');
   if (projectId) {
-    remember(projectId, 'task', request.message);
+    await remember(projectId, 'task', request.message);
   }
 
-  const execution = prepareExecution(plan, { level: 'sandbox' });
-  if (execution.status !== 'awaiting_execution') {
-    return { success: false, projectId, plan, execution };
+  const executionGate = prepareExecution(plan, { level: 'sandbox' });
+  if (executionGate.status !== 'awaiting_execution') {
+    return {
+      success: false,
+      projectId,
+      plan,
+      execution: {
+        status: 'failed',
+        message: executionGate.message,
+        iterations: 0,
+        observations: [],
+      },
+    };
   }
 
-  const test = await sandboxCheck(projectId ?? undefined);
+  for (const step of plan.steps) step.status = 'running';
+  const core = await runCoreLoop(projectId ?? undefined, plan, 'sandbox');
+
+  plan.steps.forEach((step, index) => {
+    step.status = index < core.iterations ? 'completed' : 'pending';
+  });
+  if (core.status === 'failed') {
+    const failed = core.observations.find((item) => !item.ok);
+    const message = failed?.summary ?? core.message;
+    for (const step of plan.steps) {
+      if (step.status === 'running') step.status = 'failed';
+    }
+    if (projectId) {
+      await remember(projectId, 'error', message);
+    }
+    await addExecutionLog(projectId, message, 'failed');
+  } else {
+    for (const step of plan.steps) {
+      if (step.status === 'running') step.status = 'completed';
+    }
+    if (projectId) {
+      await remember(projectId, 'test', 'اكتملت دورة التنفيذ والاختبار داخل Sandbox.');
+    }
+    await addExecutionLog(projectId, core.message, 'completed');
+  }
+
   let assistantMessage: string | undefined;
   if (process.env.OPENAI_API_KEY) {
     try {
       assistantMessage = await createModelProvider().generate(
-        `أنت BMZ AI. حلل طلب المستخدم التالي وقدّم توجيهًا عمليًا موجزًا للخطوة التالية بعد التحقق من Sandbox:\n${request.message}`,
+        [
+          'أنت مكوّن الاستدلال داخل BMZ AI نفسه، ولست وكيلاً خارجياً.',
+          'لخّص نتيجة التنفيذ التالية بالعربية الفصحى، ولا تدّعِ تنفيذ شيء غير موجود في البيانات.',
+          JSON.stringify(core.observations),
+        ].join('\n'),
       );
     } catch (error) {
-      await addExecutionLog(projectId, error instanceof Error ? error.message : 'فشل مزود النموذج.', 'failed');
+      await addExecutionLog(
+        projectId,
+        error instanceof Error ? error.message : 'فشل مكوّن الاستدلال.',
+        'failed',
+      );
     }
   }
-  if (projectId) {
-    await remember(projectId, 'test', test.ok ? 'نجح اختبار Sandbox.' : 'فشل اختبار Sandbox.');
-  }
-  await addExecutionLog(projectId, test.ok ? 'تم تنفيذ والتحقق من Sandbox.' : 'فشل التحقق من Sandbox.', test.ok ? 'completed' : 'failed');
 
   return {
-    success: test.ok,
+    success: core.status === 'completed',
     projectId,
     plan,
     assistantMessage,
     execution: {
-      status: test.ok ? 'completed' : 'failed',
-      message: test.ok
-        ? 'تم تنفيذ والتحقق من بيئة Sandbox بنجاح.'
-        : 'فشل التحقق من بيئة Sandbox.',
+      status: core.status,
+      message: core.message,
+      iterations: core.iterations,
+      observations: core.observations,
     },
   };
 }
