@@ -196,8 +196,8 @@ app.post('/api/projects/:id/github/commit', async (req, res) => {
   if (!project) { res.status(404).json({success:false,error:'project not found'}); return; }
   const message = typeof req.body?.message === 'string' ? req.body.message.trim() : 'BMZ AI update';
   const token = typeof req.body?.approvalToken === 'string' ? req.body.approvalToken : '';
-  if (!token || !(await consumeApproval(token))) {
-    const approval = await requestApproval(project.id,'approval_required','إرسال تغييرات مساحة العمل إلى GitHub سيُنشئ Commit فعليًا في المستودع.');
+  if (!token || !(await consumeApproval(res.locals.user.id,token))) {
+    const approval = await requestApproval(res.locals.user.id,project.id,'approval_required','إرسال تغييرات مساحة العمل إلى GitHub سيُنشئ Commit فعليًا في المستودع.');
     res.status(202).json({success:false,approval});
     return;
   }
@@ -224,7 +224,7 @@ app.get('/api/github/:id/branches',async(req,res)=>{const p=await getProject(req
 app.get('/api/github/:id/issues',async(req,res)=>{const p=await getProject(req.params.id,res.locals.user.id);if(!p?.repositoryUrl){res.status(404).json({success:false,error:'project not linked to GitHub'});return;}try{res.json({success:true,issues:await issues(p.repositoryUrl)});}catch(e){res.status(400).json({success:false,error:e instanceof Error?e.message:'GitHub error'});}});
 app.get('/api/github/:id/prs',async(req,res)=>{const p=await getProject(req.params.id,res.locals.user.id);if(!p?.repositoryUrl){res.status(404).json({success:false,error:'project not linked to GitHub'});return;}try{res.json({success:true,pullRequests:await pullRequests(p.repositoryUrl)});}catch(e){res.status(400).json({success:false,error:e instanceof Error?e.message:'GitHub error'});}});
 app.get('/api/github/:id/actions',async(req,res)=>{const p=await getProject(req.params.id,res.locals.user.id);if(!p?.repositoryUrl){res.status(404).json({success:false,error:'project not linked to GitHub'});return;}try{res.json({success:true,runs:await actions(p.repositoryUrl)});}catch(e){res.status(400).json({success:false,error:e instanceof Error?e.message:'GitHub error'});}});
-app.post('/api/github/:id/issue',async(req,res)=>{const p=await getProject(req.params.id,res.locals.user.id);if(!p?.repositoryUrl){res.status(404).json({success:false,error:'project not linked to GitHub'});return;}const title=typeof req.body?.title==='string'?req.body.title.trim():'';const body=typeof req.body?.body==='string'?req.body.body:'';if(!title){res.status(400).json({success:false,error:'title is required'});return;}try{const approval=await requestApproval(p.id,'github_write','إنشاء Issue على GitHub عملية كتابة خارج مساحة العمل.');res.status(202).json({success:false,approval,pending:{operation:'issue',title,body}});}catch(e){res.status(400).json({success:false,error:e instanceof Error?e.message:'تعذر طلب الموافقة.'});}});
+app.post('/api/github/:id/issue',async(req,res)=>{const p=await getProject(req.params.id,res.locals.user.id);if(!p?.repositoryUrl){res.status(404).json({success:false,error:'project not linked to GitHub'});return;}const title=typeof req.body?.title==='string'?req.body.title.trim():'';const body=typeof req.body?.body==='string'?req.body.body:'';if(!title){res.status(400).json({success:false,error:'title is required'});return;}try{const approval=await requestApproval(res.locals.user.id,p.id,'github_write','إنشاء Issue على GitHub عملية كتابة خارج مساحة العمل.');res.status(202).json({success:false,approval,pending:{operation:'issue',title,body}});}catch(e){res.status(400).json({success:false,error:e instanceof Error?e.message:'تعذر طلب الموافقة.'});}});
 app.post('/api/github/:id/branch',async(req,res)=>{const p=await getProject(req.params.id,res.locals.user.id);if(!p?.repositoryUrl){res.status(404).json({success:false,error:'project not linked to GitHub'});return;}const name=typeof req.body?.name==='string'?req.body.name.trim():'';const from=typeof req.body?.from==='string'?req.body.from.trim():'main';if(!/^[A-Za-z0-9._\\/-]{1,80}$/.test(name)){res.status(400).json({success:false,error:'اسم الفرع غير صالح.'});return;}const approval=await requestApproval(p.id,'github_write','إنشاء Branch على GitHub يتطلب موافقة صريحة.');res.status(202).json({success:false,approval,pending:{operation:'branch',name,from}});});
 app.get('/api/permissions', async (req,res)=>{res.json({success:true,permissions:await listPermissions(res.locals.user.id)});});
 app.post('/api/permissions', async (req,res)=>{try{const permission=req.body?.permission as any;const allowed=['READ_PROJECT','WRITE_PROJECT','DELETE_FILE','RUN_COMMAND','NETWORK_ACCESS','GITHUB_READ','GITHUB_WRITE','GITHUB_PUSH','GITHUB_MERGE','SEND_MESSAGE','BROWSER_AUTOMATION','SCHEDULE_WORKFLOW'];if(!allowed.includes(permission)){res.status(400).json({success:false,error:'صلاحية غير معروفة.'});return;}const projectId=typeof req.body?.projectId==='string'?req.body.projectId:null;res.status(201).json({success:true,permission:await grantPermission(res.locals.user.id,projectId,permission,typeof req.body?.scope==='string'?req.body.scope:undefined)});}catch(error){res.status(400).json({success:false,error:error instanceof Error?error.message:'تعذر منح الصلاحية.'})}});
@@ -278,7 +278,7 @@ app.get('/api/sessions/:id', async (req, res) => {
 });
 
 app.post('/api/approvals/:id/approve', async (req, res) => {
-  const approval = await approveRequest(req.params.id);
+  const approval = await approveRequest(res.locals.user.id,req.params.id);
   if (!approval) {
     res.status(404).json({ success: false, error: 'approval not found or expired' });
     return;
