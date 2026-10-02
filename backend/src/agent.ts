@@ -6,12 +6,14 @@ import { remember } from './memory-store.js';
 import { addExecutionLog } from './execution-store.js';
 import { createModelProvider } from './model-provider.js';
 import { requestApproval, consumeApproval } from './approval-store.js';
+import { listWorkspaceFiles } from './workspace-service.js';
 
 export async function handleAgentRequest(request: AgentRequest): Promise<AgentResponse> {
   const projectId = request.projectId ?? null;
   const provider = createModelProvider();
+  const workspaceFiles = projectId ? (await listWorkspaceFiles(projectId)).files : [];
   const permissionLevel = request.permissionLevel ?? (/(commit|push|deploy|نشر|رفع|حذف نهائي|delete permanently|production)/i.test(request.message) ? 'approval_required' : 'sandbox');
-  const plan = await createPlan(request.message, provider);
+  const plan = await createPlan(request.message, provider, workspaceFiles);
 
   await addExecutionLog(projectId, request.message, 'started');
   if (projectId) {
