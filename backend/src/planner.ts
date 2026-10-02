@@ -23,7 +23,11 @@ function fallbackPlan(goal: string): AgentPlan {
       action: { type: 'write_file', path: '.bmz-task.txt', content: goal.trim() },
     });
   }
-  if (/(android|أندرويد|اندرويد|apk|تطبيق|mobile|app)/i.test(value)) {\n    steps.splice(1, 0, { id: 'scaffold', title: 'إنشاء مشروع Android فعلي', status: 'pending', action: { type: 'scaffold_app', platform: 'android' } });\n    steps.push({ id: 'android-build', title: 'بناء APK عبر Gradle', status: 'pending', action: { type: 'build_android' } });\n  }\n  if (test || !inspect || steps.some((step) => step.action?.type === 'scaffold_app')) {
+  if (/(android|أندرويد|اندرويد|apk|تطبيق|mobile|app)/i.test(value)) {
+    steps.splice(1, 0, { id: 'scaffold', title: 'إنشاء مشروع Android فعلي', status: 'pending', action: { type: 'scaffold_app', platform: 'android' } });
+    steps.push({ id: 'android-build', title: 'بناء APK عبر Gradle', status: 'pending', action: { type: 'build_android' } });
+  }
+  if (test || !inspect || steps.some((step) => step.action?.type === 'scaffold_app')) {
     steps.push({ id: 'test', title: 'اختبار المشروع', status: 'pending', action: { type: 'test' } });
   }
   return { goal: goal.trim(), steps };
