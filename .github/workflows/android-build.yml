@@ -1,5 +1,5 @@
 concurrency:
-  group: bmz-ai-${{ github.workflow }}-${{ github.ref }}
+  group: bmz-ai-${{ github.workflow }}-${{ github.sha }}
   cancel-in-progress: true
 
 name: BMZ AI Android Build
