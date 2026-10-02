@@ -12,7 +12,8 @@ import { commitWorkspaceToGitHub } from './github-write.js';
 import { latestAndroidBuild, downloadLatestAndroidArtifact, downloadLatestArtifactNamed, downloadLatestMobileArtifact } from './github-actions.js';
 import { runCommandInSandbox } from './sandbox-tools.js';
 import { listTasks, getTask } from './task-store.js';
-import { enqueueAgentTask, cancelTask } from './task-queue.js';
+import { enqueueAgentTask, cancelTask, runTask } from './task-queue.js';
+import { listAllTasks } from './task-store.js';
 import { eventsSse } from './realtime.js';
 import { runWorkflow, type Workflow } from './workflow-engine.js';
 import { register, login, logout, authenticate, requireAuth } from './auth.js';
@@ -334,6 +335,11 @@ app.use((_req, res) => {
 });
 
 void startScheduler();
+if(process.env.BMZ_EMBED_WORKER!=='false'){
+  const poll=async()=>{const tasks=await listAllTasks();await Promise.all(tasks.filter(t=>t.status==='pending').slice(0,2).map(t=>runTask(t.id,t.userId)));};
+  void poll();
+  setInterval(()=>{void poll();},Math.max(1000,Number(process.env.BMZ_WORKER_POLL_MS??1500)));
+}
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`BMZ AI Backend running on http://0.0.0.0:${PORT}`);
