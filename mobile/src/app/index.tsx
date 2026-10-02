@@ -28,9 +28,9 @@ export default function HomeScreen(){
  async function ensureProject(){
   if(projectId)return projectId;
   const endpoint=repo.trim()?apiBase+'/api/projects/import-github':apiBase+'/api/projects';
-  const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'مشروع BMZ AI',...(repo.trim()?{repositoryUrl:repo.trim()}:{})})});
+  const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:projectName.trim()||'مشروع BMZ AI',...(repo.trim()?{repositoryUrl:repo.trim()}:{})})});
   const d=await r.json(); if(!r.ok||!d.project?.id)throw new Error(d.error||'تعذر إنشاء المشروع.');
-  setProjectId(d.project.id); await refreshFiles(d.project.id); return d.project.id;
+  setProjectId(d.project.id); await refreshFiles(d.project.id); await loadProjects(); return d.project.id;
  }
  async function ensureSession(pid:string){if(sessionId)return sessionId;const r=await fetch(apiBase+'/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({projectId:pid})});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر إنشاء الجلسة.');setSessionId(d.session.id);return d.session.id;}
  async function refreshFiles(pid=projectId){if(!pid)return;const r=await fetch(apiBase+'/api/projects/'+pid+'/files');const d=await r.json();if(r.ok)setFiles(d.files||[]);}
