@@ -11,7 +11,7 @@ export async function latestAndroidBuild(projectId:string){
  const run=runs.workflow_runs.find(x=>x.status==='in_progress'||x.status==='queued')??runs.workflow_runs.find(x=>x.conclusion==='success'||x.conclusion==='failure'||x.conclusion==='cancelled');
  if(!run)return {found:false};
  const artifacts=await api<{artifacts:Array<{id:number;name:string;expired:boolean;size_in_bytes:number;archive_download_url:string}>}>(`https://api.github.com/repos/${owner}/${name}/actions/runs/${run.id}/artifacts?per_page=50`);
- const apk=artifacts.artifacts.find(x=>x.name==='bmz-ai-debug-apk'&&!x.expired);
+ const apk=artifacts.artifacts.find(x=>x.name==='bmz-ai-mobile-debug-apk'&&!x.expired) ?? artifacts.artifacts.find(x=>x.name==='bmz-ai-debug-apk'&&!x.expired);
  return {found:true,run:{id:run.id,status:run.status,conclusion:run.conclusion,htmlUrl:run.html_url,headSha:run.head_sha,updatedAt:run.updated_at},artifact:apk?{id:apk.id,name:apk.name,size:apk.size_in_bytes,downloadUrl:apk.archive_download_url}:null};
 }
 export async function downloadLatestAndroidArtifact(projectId:string){
