@@ -10,6 +10,7 @@ import type {
 import { authorizeAction } from './orchestrator.js';
 import type { ModelProvider } from './model-provider.js';
 import { createSandboxWorkspace, type SandboxWorkspace } from './sandbox-core.js';
+import { scaffoldAndroidApp } from './app-builder.js';
 import {
   readFileInSandbox,
   runCommandInSandbox,
@@ -60,6 +61,16 @@ async function executeAction(
         summary: `تمت قراءة الملف ${action.path}.`,
         stdout: maskSecrets(result.content.slice(0, 20000)),
       };
+    }
+
+    if (action.type === 'scaffold_app') {
+      const result = await scaffoldAndroidApp(projectId);
+      return { action: action.type, ok: true, summary: `تم إنشاء مشروع Android فعلي داخل Sandbox: ${result.files.length} ملفات.` };
+    }
+
+    if (action.type === 'build_android') {
+      const result = await runCommandInSandbox(projectId, 'gradle', ['--no-daemon', 'assembleDebug']);
+      return { action: action.type, ok: result.code === 0, summary: result.code === 0 ? 'تم بناء APK Android بنجاح عبر Gradle.' : `فشل بناء APK برمز ${result.code}.`, stdout: maskSecrets(result.stdout), stderr: maskSecrets(result.stderr) };
     }
 
     if (action.type === 'write_file') {
@@ -133,9 +144,11 @@ function isAction(value: unknown): value is AgentAction {
   if (!value || typeof value !== 'object') return false;
   const item = value as Record<string, unknown>;
   if (typeof item.type !== 'string') return false;
-  if (!['inspect_workspace', 'read_file', 'write_file', 'run_command', 'test'].includes(item.type)) return false;
+  if (!['inspect_workspace', 'read_file', 'write_file', 'run_command', 'scaffold_app', 'build_android', 'test'].includes(item.type)) return false;
   if (item.type === 'read_file' && typeof item.path !== 'string') return false;
   if (item.type === 'write_file' && (typeof item.path !== 'string' || typeof item.content !== 'string')) return false;
+  if (item.type === 'scaffold_app') return item.platform === undefined || item.platform === 'android';
+  if (item.type === 'build_android') return true;
   if (item.type === 'run_command') {
     if (typeof item.command !== 'string') return false;
     if (item.args !== undefined && (!Array.isArray(item.args) || item.args.some((arg) => typeof arg !== 'string'))) return false;
