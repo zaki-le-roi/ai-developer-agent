@@ -1,26 +1,38 @@
 name: BMZ AI Android Build
-# Final GitHub-only Android pipeline
 
 on:
   workflow_dispatch:
+  repository_dispatch:
+    types: [bmz_android_build]
   push:
     paths:
       - 'templates/android/**'
+      - 'app/**'
+      - 'settings.gradle'
+      - 'settings.gradle.kts'
       - '.github/workflows/android-build.yml'
 
 jobs:
   android:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: templates/android
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-      - name: Prepare Gradle files
+      - name: Select Android project
+        id: project
+        shell: bash
+        run: |
+          if [ -f "settings.gradle" ] || [ -f "settings.gradle.kts" ]; then
+            echo "dir=." >> "$GITHUB_OUTPUT"
+          else
+            echo "dir=templates/android" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Prepare template Gradle files
+        if: steps.project.outputs.dir == 'templates/android'
+        working-directory: templates/android
         run: |
           base64 -d root.gradle.b64 > build.gradle
           base64 -d app/build.gradle.b64 > app/build.gradle
@@ -33,9 +45,10 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
       - name: Build debug APK
+        working-directory: ${{ steps.project.outputs.dir }}
         run: gradle --no-daemon assembleDebug
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: bmz-ai-debug-apk
-          path: templates/android/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ steps.project.outputs.dir }}/app/build/outputs/apk/debug/app-debug.apk
