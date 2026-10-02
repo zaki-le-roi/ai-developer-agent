@@ -87,7 +87,7 @@ jobs:
           "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
       - name: Build BMZ AI APK
         working-directory: mobile/android
-        run: gradle --no-daemon assembleDebug
+        run: chmod +x gradlew && ./gradlew --no-daemon assembleDebug
       - name: Upload BMZ AI mobile APK
         uses: actions/upload-artifact@v4
         with:
