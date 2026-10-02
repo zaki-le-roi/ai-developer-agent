@@ -1,9 +1,9 @@
 import React,{useEffect,useMemo,useState} from 'react';
 import {Alert,KeyboardAvoidingView,Platform,Pressable,SafeAreaView,ScrollView,StatusBar,StyleSheet,Text,TextInput,View,useWindowDimensions} from 'react-native';
-import {WebView} from 'react-native-webview';
 import {Linking} from 'react-native';
 
 const API_URL=process.env.EXPO_PUBLIC_API_URL??'http://192.168.1.119:4000';
+const getWebView=()=>require('react-native-webview').WebView;
 type FileItem={path:string};
 type Msg={id:number,role:'user'|'agent',text:string};
 type Approval={id:string,reason:string};
@@ -68,7 +68,7 @@ export default function HomeScreen(){
     <ScrollView style={s.filePane}>{files.length?files.map(p=><Pressable key={p} onPress={()=>openFile(p)} style={s.file}><Text style={s.fileText}>{p}</Text></Pressable>):<Text style={s.empty}>لا توجد ملفات.</Text>}</ScrollView>
     <View style={s.workPane}>
       <View style={s.ideToolbar}><Text style={s.fileTitle}>{selected||'المحرر'}</Text><View style={s.toolbarBtns}><Pressable onPress={()=>setTab('code')} style={s.smallBtn}><Text style={s.smallBtnText}>الكود</Text></Pressable><Pressable onPress={()=>setTab('preview')} style={s.smallBtn}><Text style={s.smallBtnText}>المعاينة</Text></Pressable><Pressable onPress={()=>setTab('agent')} style={s.smallBtn}><Text style={s.smallBtnText}>السجل</Text></Pressable></View></View>
-      {tab==='preview'?<View style={s.preview}><WebView key={previewKey} source={{uri:base+'/preview'}} style={s.web} originWhitelist={['*']} /></View>:tab==='agent'?<ScrollView style={s.panel} contentContainerStyle={s.logs}>{logs.map(m=><View key={m.id} style={[s.log,m.role==='user'&&s.user]}><Text style={s.logRole}>{m.role==='user'?'أنت':'BMZ AI'}</Text><Text style={s.logText}>{m.text}</Text></View>)}</ScrollView>:<View style={s.panel}><View style={s.codeHead}><Text style={s.fileTitle}>{selected||'لا يوجد ملف'}</Text><View style={s.toolbarBtns}><Pressable onPress={saveFile} style={s.smallBtn}><Text style={s.smallBtnText}>حفظ</Text></Pressable><Pressable onPress={()=>void deleteSelected()} disabled={!selected} style={s.dangerBtn}><Text style={s.dangerText}>حذف</Text></Pressable></View></View><TextInput value={code} onChangeText={setCode} multiline style={s.editor} textAlign="left" autoCapitalize="none" autoCorrect={false}/></View>}
+      {tab==='preview'?<View style={s.preview}>{React.createElement(getWebView(),{key:previewKey,source:{uri:base+'/preview'},style:s.web,originWhitelist:['*']})}</View>:tab==='agent'?<ScrollView style={s.panel} contentContainerStyle={s.logs}>{logs.map(m=><View key={m.id} style={[s.log,m.role==='user'&&s.user]}><Text style={s.logRole}>{m.role==='user'?'أنت':'BMZ AI'}</Text><Text style={s.logText}>{m.text}</Text></View>)}</ScrollView>:<View style={s.panel}><View style={s.codeHead}><Text style={s.fileTitle}>{selected||'لا يوجد ملف'}</Text><View style={s.toolbarBtns}><Pressable onPress={saveFile} style={s.smallBtn}><Text style={s.smallBtnText}>حفظ</Text></Pressable><Pressable onPress={()=>void deleteSelected()} disabled={!selected} style={s.dangerBtn}><Text style={s.dangerText}>حذف</Text></Pressable></View></View><TextInput value={code} onChangeText={setCode} multiline style={s.editor} textAlign="left" autoCapitalize="none" autoCorrect={false}/></View>}
     </View>
    </View> :
    <>
