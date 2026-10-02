@@ -287,7 +287,7 @@ ${data.approval.reason}` }]);
             />
             <Pressable
               style={[styles.sendButton, (!message.trim() || sending) && styles.sendButtonDisabled]}
-              onPress={sendMessage}
+              onPress={() => { void sendMessage(); }}
               disabled={!message.trim() || sending}
             >
               <Text style={styles.sendIcon}>{sending ? '…' : '↑'}</Text>
