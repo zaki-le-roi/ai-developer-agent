@@ -13,6 +13,7 @@ import { createSandboxWorkspace, type SandboxWorkspace } from './sandbox-core.js
 import { scaffoldAndroidApp } from './app-builder.js';
 import { listWorkspaceFiles, readWorkspaceFile } from './workspace-service.js';
 import { commitWorkspaceToGitHub } from './github-write.js';
+import { hasPermission } from './permission-store.js';
 import {
   readFileInSandbox,
   deleteFileInSandbox,
