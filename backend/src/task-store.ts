@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { getDb } from './db.js';
 
 export type TaskStatus = 'pending'|'running'|'paused'|'waiting_approval'|'failed'|'completed'|'cancelled';
@@ -44,7 +45,7 @@ function map(row:any):Task{
 export async function createTask(userId:string,projectId:string|null,message:string){
   await migrateLegacy();
   const now=new Date().toISOString();
-  const task:Task={id:crypto.randomUUID(),userId,projectId,message,status:'pending',createdAt:now,updatedAt:now};
+  const task:Task={id:randomUUID(),userId,projectId,message,status:'pending',createdAt:now,updatedAt:now};
   getDb().prepare('INSERT INTO tasks(id,user_id,project_id,status,message,created_at,updated_at,result_json,error) VALUES(?,?,?,?,?,?,?,?,?)').run(task.id,userId,projectId,'pending',message,now,now,null,null);
   return task;
 }
