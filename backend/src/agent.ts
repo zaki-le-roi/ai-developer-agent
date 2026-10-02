@@ -5,10 +5,12 @@ import { runCoreLoop } from './core-loop.js';
 import { remember } from './memory-store.js';
 import { addExecutionLog } from './execution-store.js';
 import { createModelProvider } from './model-provider.js';
+import { requestApproval, consumeApproval } from './approval-store.js';
 
 export async function handleAgentRequest(request: AgentRequest): Promise<AgentResponse> {
   const projectId = request.projectId ?? null;
   const provider = createModelProvider();
+  const permissionLevel = request.permissionLevel ?? 'sandbox';
   const plan = await createPlan(request.message, provider);
 
   await addExecutionLog(projectId, request.message, 'started');
@@ -16,7 +18,30 @@ export async function handleAgentRequest(request: AgentRequest): Promise<AgentRe
     await remember(projectId, 'task', request.message);
   }
 
-  const executionGate = prepareExecution(plan, { level: 'sandbox' });
+  const needsApproval = permissionLevel === 'approval_required' || permissionLevel === 'real_execution';
+  if (needsApproval) {
+    if (!request.approvalToken || !(await consumeApproval(request.approvalToken))) {
+      const approval = await requestApproval(
+        projectId,
+        permissionLevel,
+        'طلب التنفيذ يتضمن عمليات تتطلب موافقة صريحة قبل المتابعة.',
+      );
+      return {
+        success: false,
+        projectId,
+        approval,
+        plan,
+        execution: {
+          status: 'awaiting_execution',
+          message: 'تحتاج هذه العملية إلى موافقة صريحة قبل التنفيذ.',
+          iterations: 0,
+          observations: [],
+        },
+      };
+    }
+  }
+
+  const executionGate = prepareExecution(plan, { level: permissionLevel });
   if (executionGate.status !== 'awaiting_execution') {
     return {
       success: false,
@@ -32,7 +57,7 @@ export async function handleAgentRequest(request: AgentRequest): Promise<AgentRe
   }
 
   for (const step of plan.steps) step.status = 'running';
-  const core = await runCoreLoop(projectId ?? undefined, plan, 'sandbox', provider);
+  const core = await runCoreLoop(projectId ?? undefined, plan, permissionLevel, provider);
 
   plan.steps.forEach((step, index) => {
     step.status = index < core.iterations
