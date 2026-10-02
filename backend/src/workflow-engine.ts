@@ -1,5 +1,6 @@
 import { runCommandInSandbox, readFileInSandbox, writeFileInSandbox, deleteFileInSandbox } from './sandbox-tools.js';
 import { publish } from './event-bus.js';
+import { hasPermission } from './permission-store.js';
 
 export type WorkflowNode={id:string;type:string;config:Record<string,unknown>};
 export type Workflow={id:string;name:string;nodes:WorkflowNode[];edges:Array<{from:string;to:string}>};
@@ -31,7 +32,9 @@ function interpolate(value:unknown,outputs:Map<string,unknown>):unknown{
   });
 }
 
-async function executeNode(node:WorkflowNode,projectId:string,outputs:Map<string,unknown>):Promise<unknown>{
+async function executeNode(node:WorkflowNode,projectId:string,userId:string,outputs:Map<string,unknown>):Promise<unknown>{
+  const required = node.type === 'HttpRequest' ? 'NETWORK_ACCESS' : ['RunCommand'].includes(node.type) ? 'RUN_COMMAND' : ['WriteFile'].includes(node.type) ? 'WRITE_PROJECT' : ['DeleteFile'].includes(node.type) ? 'DELETE_FILE' : 'READ_PROJECT';
+  if (!(await hasPermission(userId, projectId, required as any))) throw new Error(`الصلاحية ${required} غير ممنوحة لهذه Workflow.`);
   const config=Object.fromEntries(Object.entries(node.config).map(([k,v])=>[k,interpolate(v,outputs)]));
   switch(node.type){
     case 'ManualTrigger':
@@ -72,7 +75,7 @@ async function executeNode(node:WorkflowNode,projectId:string,outputs:Map<string
   }
 }
 
-export async function runWorkflow(workflow:Workflow,projectId:string){
+export async function runWorkflow(workflow:Workflow,projectId:string,userId:string){
   validate(workflow);
   const outputs=new Map<string,unknown>();
   const incoming=(id:string)=>workflow.edges.filter(e=>e.to===id).map(e=>e.from);
@@ -84,7 +87,7 @@ export async function runWorkflow(workflow:Workflow,projectId:string){
       if(done.has(node.id)||incoming(node.id).some(x=>!done.has(x)))continue;
       publish({type:'workflow.node.started',projectId,data:{workflowId:workflow.id,nodeId:node.id,type:node.type}});
       try{
-        const output=await executeNode(node,projectId,outputs);
+        const output=await executeNode(node,projectId,userId,outputs);
         outputs.set(node.id,output);done.add(node.id);
         publish({type:'workflow.node.completed',projectId,data:{workflowId:workflow.id,nodeId:node.id,output}});
         progressed=true;
