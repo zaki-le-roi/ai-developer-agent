@@ -105,7 +105,7 @@ app.post('/api/projects/import-github', async (req, res) => {
 });
 
 app.get('/api/projects/:id', async (req, res) => {
-  const project = await getProject(req.params.id);
+  const project = await getProject(req.params.id, res.locals.user.id);
   if (!project) {
     res.status(404).json({ success: false, error: 'project not found' });
     return;
@@ -114,14 +114,14 @@ app.get('/api/projects/:id', async (req, res) => {
 });
 
 app.get('/api/projects/:id/files', async (req, res) => {
-  const project = await getProject(req.params.id);
+  const project = await getProject(req.params.id, res.locals.user.id);
   if (!project) { res.status(404).json({ success:false, error:'project not found' }); return; }
   try { res.json({ success:true, ...(await listWorkspaceFiles(project.id)) }); }
   catch(error){ res.status(400).json({success:false,error:error instanceof Error?error.message:'تعذر قراءة الملفات.'}); }
 });
 
 app.get('/api/projects/:id/file', async (req, res) => {
-  const project = await getProject(req.params.id);
+  const project = await getProject(req.params.id, res.locals.user.id);
   const file = typeof req.query.path === 'string' ? req.query.path : '';
   if (!project) { res.status(404).json({success:false,error:'project not found'}); return; }
   try { res.json({ success:true, ...(await readWorkspaceFile(project.id,file)) }); }
@@ -129,7 +129,7 @@ app.get('/api/projects/:id/file', async (req, res) => {
 });
 
 app.put('/api/projects/:id/file', async (req, res) => {
-  const project = await getProject(req.params.id);
+  const project = await getProject(req.params.id, res.locals.user.id);
   const file = typeof req.body?.path === 'string' ? req.body.path : '';
   const content = typeof req.body?.content === 'string' ? req.body.content : '';
   if (!project) { res.status(404).json({success:false,error:'project not found'}); return; }
@@ -138,7 +138,7 @@ app.put('/api/projects/:id/file', async (req, res) => {
 });
 
 app.delete('/api/projects/:id/file', async (req, res) => {
-  const project = await getProject(req.params.id);
+  const project = await getProject(req.params.id, res.locals.user.id);
   const file = typeof req.body?.path === 'string' ? req.body.path : '';
   if (!project) { res.status(404).json({success:false,error:'project not found'}); return; }
   try { res.json({ success:true, ...(await deleteWorkspaceFile(project.id,file)) }); }
@@ -146,7 +146,7 @@ app.delete('/api/projects/:id/file', async (req, res) => {
 });
 
 app.get('/api/projects/:id/preview', async (req, res) => {
-  const project = await getProject(req.params.id);
+  const project = await getProject(req.params.id, res.locals.user.id);
   if (!project) { res.status(404).type('text/plain').send('project not found'); return; }
   try {
     const result = await readWorkspaceFile(project.id,'index.html');
@@ -157,7 +157,7 @@ app.get('/api/projects/:id/preview', async (req, res) => {
 });
 
 app.get('/api/projects/:id/github/build', async (req, res) => {
-  const project = await getProject(req.params.id);
+  const project = await getProject(req.params.id, res.locals.user.id);
   if (!project) { res.status(404).json({success:false,error:'project not found'}); return; }
   try { res.json({success:true, ...(await latestAndroidBuild(project.id))}); }
   catch(error){ res.status(400).json({success:false,error:error instanceof Error?error.message:'تعذر قراءة حالة بناء Android.'}); }
@@ -165,7 +165,7 @@ app.get('/api/projects/:id/github/build', async (req, res) => {
 
 app.get('/api/mobile/apk', async (_req, res) => {
   try {
-    const projects = await listProjects();
+    const projects = await listProjects(res.locals.user.id);
     const project = projects.find((item) => item.repositoryUrl);
     if (!project) { res.status(404).json({success:false,error:'لا يوجد مشروع مرتبط بمستودع GitHub.'}); return; }
     const apk = await downloadLatestArtifactNamed(project.id, 'bmz-ai-mobile-debug-apk');
@@ -176,7 +176,7 @@ app.get('/api/mobile/apk', async (_req, res) => {
 });
 
 app.get('/api/projects/:id/github/build/apk', async (req, res) => {
-  const project = await getProject(req.params.id);
+  const project = await getProject(req.params.id, res.locals.user.id);
   if (!project) { res.status(404).json({success:false,error:'project not found'}); return; }
   try {
     const artifact = await downloadLatestMobileArtifact(project.id);
@@ -187,7 +187,7 @@ app.get('/api/projects/:id/github/build/apk', async (req, res) => {
 });
 
 app.post('/api/projects/:id/github/commit', async (req, res) => {
-  const project = await getProject(req.params.id);
+  const project = await getProject(req.params.id, res.locals.user.id);
   if (!project) { res.status(404).json({success:false,error:'project not found'}); return; }
   const message = typeof req.body?.message === 'string' ? req.body.message.trim() : 'BMZ AI update';
   const token = typeof req.body?.approvalToken === 'string' ? req.body.approvalToken : '';
@@ -201,7 +201,7 @@ app.post('/api/projects/:id/github/commit', async (req, res) => {
 });
 
 app.post('/api/projects/:id/terminal', async (req, res) => {
-  const project = await getProject(req.params.id);
+  const project = await getProject(req.params.id, res.locals.user.id);
   const command = typeof req.body?.command === 'string' ? req.body.command.trim() : '';
   const args = Array.isArray(req.body?.args) ? req.body.args.filter((item: unknown): item is string => typeof item === 'string') : [];
   if (!project) { res.status(404).json({ success:false, error:'project not found' }); return; }
@@ -223,7 +223,7 @@ app.post('/api/tasks/:id/cancel', async (req, res) => { const task=await cancelT
 app.post('/api/workflows/run', async (req,res) => { const workflow=req.body?.workflow as Workflow|undefined; const projectId=typeof req.body?.projectId==='string'?req.body.projectId:''; if(!workflow||!projectId){res.status(400).json({success:false,error:'workflow و projectId مطلوبان'});return;} try{const result=await runWorkflow(workflow,projectId);res.json({success:true,result});}catch(error){res.status(400).json({success:false,error:error instanceof Error?error.message:'فشل تنفيذ Workflow'});} });
 
 app.get('/api/projects/:id/executions', async (req, res) => {
-  const project = await getProject(req.params.id);
+  const project = await getProject(req.params.id, res.locals.user.id);
   if (!project) {
     res.status(404).json({ success: false, error: 'project not found' });
     return;
@@ -232,7 +232,7 @@ app.get('/api/projects/:id/executions', async (req, res) => {
 });
 
 app.get('/api/projects/:id/memory', async (req, res) => {
-  const project = await getProject(req.params.id);
+  const project = await getProject(req.params.id, res.locals.user.id);
   if (!project) {
     res.status(404).json({ success: false, error: 'project not found' });
     return;
