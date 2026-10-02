@@ -57,7 +57,7 @@ export async function handleAgentRequest(request: AgentRequest): Promise<AgentRe
   let assistantMessage: string | undefined;
   if (provider.name !== 'unconfigured') {
     try {
-      assistantMessage = await createModelProvider().generate(
+      assistantMessage = await provider.generate(
         [
           'أنت مكوّن الاستدلال داخل BMZ AI نفسه، ولست وكيلاً خارجياً.',
           'لخّص نتيجة التنفيذ التالية بالعربية الفصحى، ولا تدّعِ تنفيذ شيء غير موجود في البيانات.',
