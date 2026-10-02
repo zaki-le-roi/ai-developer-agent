@@ -30,6 +30,7 @@ type AgentResponse = {
   };
   error?: string;
   assistantMessage?: string;
+  approval?: { id: string; action: string; reason: string; expiresAt: string; approved: boolean };
 };
 
 const suggestions = [
@@ -63,6 +64,8 @@ export default function HomeScreen() {
   const [sending, setSending] = useState(false);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [repositoryUrl, setRepositoryUrl] = useState('');
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [pendingApproval, setPendingApproval] = useState<AgentResponse['approval']>(undefined);
 
   async function sendMessage() {
     const cleanMessage = message.trim();
@@ -77,6 +80,7 @@ export default function HomeScreen() {
 
     try {
       let activeProjectId = projectId;
+      let activeSessionId = sessionId;
       if (!activeProjectId) {
         const endpoint = repositoryUrl.trim()
           ? `${API_URL}/api/projects/import-github`
@@ -97,17 +101,32 @@ export default function HomeScreen() {
         setProjectId(activeProjectId);
       }
 
+      if (!activeSessionId) {
+        const sessionResponse = await fetch(`${API_URL}/api/sessions`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectId: activeProjectId }),
+        });
+        const sessionData = (await sessionResponse.json()) as { session?: { id?: string } };
+        if (!sessionResponse.ok || !sessionData.session?.id) throw new Error('تعذر إنشاء جلسة BMZ AI.');
+        activeSessionId = sessionData.session.id;
+        setSessionId(activeSessionId);
+      }
+      }
+
       const response = await fetch(`${API_URL}/api/agent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: cleanMessage, projectId: activeProjectId }),
+        body: JSON.stringify({ message: cleanMessage, projectId: activeProjectId, sessionId: activeSessionId }),
       });
 
       const data = (await response.json()) as AgentResponse;
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || data.execution?.message || 'تعذر تنفيذ الطلب.');
+      if (data.approval) {
+        setPendingApproval(data.approval);
+        setMessages((current) => [...current, { id: Date.now() + 1, role: 'agent', text: `مطلوب موافقة قبل التنفيذ.\\n\\n${data.approval.reason}` }]);
+        return;
       }
+      if (!response.ok || !data.success) throw new Error(data.error || data.execution?.message || 'تعذر تنفيذ الطلب.');
 
       const steps = data.plan?.steps ?? [];
       const planText = steps.length
@@ -224,6 +243,30 @@ export default function HomeScreen() {
           )}
         </ScrollView>
 
+
+        {pendingApproval && (
+          <View style={styles.approvalCard}>
+            <Text style={styles.approvalTitle}>موافقة مطلوبة</Text>
+            <Text style={styles.approvalText}>{pendingApproval.reason}</Text>
+            <Pressable
+              style={styles.approvalButton}
+              onPress={async () => {
+                try {
+                  const approved = await fetch(`${API_URL}/api/approvals/${pendingApproval.id}/approve`, { method: 'POST' });
+                  const result = await approved.json() as { success?: boolean };
+                  if (!approved.ok || !result.success) throw new Error('تعذر تسجيل الموافقة.');
+                  const lastUserMessage = messages.filter((item) => item.role === 'user').at(-1)?.text ?? '';
+                  setPendingApproval(undefined);
+                  setMessage(lastUserMessage);
+                } catch (error) {
+                  setMessages((current) => [...current, { id: Date.now(), role: 'agent', text: error instanceof Error ? error.message : 'تعذر تسجيل الموافقة.' }]);
+                }
+              }}
+            >
+              <Text style={styles.approvalButtonText}>موافقة</Text>
+            </Pressable>
+          </View>
+        )}
         <View style={styles.inputArea}>
           <View style={styles.inputContainer}>
             <TextInput
@@ -302,6 +345,11 @@ const styles = StyleSheet.create({
   agentBubble: { backgroundColor: '#171717', borderWidth: 1, borderColor: '#252525', borderBottomLeftRadius: 5 },
   messageText: { fontSize: 14, lineHeight: 22, color: '#FFFFFF', textAlign: 'right' },
   userText: { color: '#0A0A0A' },
+  approvalCard: { paddingHorizontal: 14, paddingTop: 10 },
+  approvalTitle: { color: '#FFFFFF', fontSize: 15, fontWeight: '800', textAlign: 'right', marginBottom: 5 },
+  approvalText: { color: '#AAAAAA', fontSize: 12, lineHeight: 19, textAlign: 'right', marginBottom: 9 },
+  approvalButton: { minHeight: 44, borderRadius: 13, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+  approvalButtonText: { color: '#0A0A0A', fontWeight: '800' },
   inputArea: {
     paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10,
     borderTopWidth: 1, borderTopColor: '#1D1D1D', backgroundColor: '#0A0A0A',
