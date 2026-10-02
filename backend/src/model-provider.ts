@@ -11,8 +11,12 @@ export function createOpenAIProvider(): ModelProvider {
     throw new Error('OPENAI_API_KEY غير مُعد في بيئة التشغيل.');
   }
 
+  const model = process.env.OPENAI_MODEL?.trim();
+  if (!model) {
+    throw new Error('OPENAI_MODEL غير مُعد في بيئة التشغيل.');
+  }
+
   const client = new OpenAI({ apiKey });
-  const model = process.env.OPENAI_MODEL ?? 'gpt-6-luna';
 
   return {
     name: `openai:${model}`,
