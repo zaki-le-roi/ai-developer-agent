@@ -8,20 +8,20 @@ async function raw(userId:string,url:string):Promise<Buffer>{const credential=gi
 export async function latestAndroidBuild(projectId:string,userId:string){
  const project=await getProject(projectId,userId);if(!project?.repositoryUrl)throw new Error('المشروع غير مرتبط بـ GitHub.');
  const {owner,name}=parts(project.repositoryUrl);
- const runs=await api<{workflow_runs:Array<{id:number;status:string;conclusion:string|null;html_url:string;head_sha:string;created_at:string;updated_at:string}>}>(`https://api.github.com/repos/${owner}/${name}/actions/runs?per_page=50`);
+ const runs=await api<{workflow_runs:Array<{id:number;status:string;conclusion:string|null;html_url:string;head_sha:string;created_at:string;updated_at:string}>}>(userId,`https://api.github.com/repos/${owner}/${name}/actions/runs?per_page=50`);
  const run=runs.workflow_runs.find(x=>x.status==='in_progress'||x.status==='queued')??runs.workflow_runs.find(x=>x.conclusion==='success'||x.conclusion==='failure'||x.conclusion==='cancelled');
  if(!run)return {found:false};
- const artifacts=await api<{artifacts:Array<{id:number;name:string;expired:boolean;size_in_bytes:number;archive_download_url:string}>}>(`https://api.github.com/repos/${owner}/${name}/actions/runs/${run.id}/artifacts?per_page=50`);
+ const artifacts=await api<{artifacts:Array<{id:number;name:string;expired:boolean;size_in_bytes:number;archive_download_url:string}>}>(userId,`https://api.github.com/repos/${owner}/${name}/actions/runs/${run.id}/artifacts?per_page=50`);
  const apk=artifacts.artifacts.find(x=>x.name==='bmz-ai-mobile-debug-apk'&&!x.expired) ?? artifacts.artifacts.find(x=>x.name==='bmz-ai-debug-apk'&&!x.expired);
  return {found:true,run:{id:run.id,status:run.status,conclusion:run.conclusion,htmlUrl:run.html_url,headSha:run.head_sha,updatedAt:run.updated_at},artifact:apk?{id:apk.id,name:apk.name,size:apk.size_in_bytes,downloadUrl:apk.archive_download_url}:null};
 }
 export async function downloadLatestAndroidArtifact(projectId:string,userId:string){
  const project=await getProject(projectId,userId);if(!project?.repositoryUrl)throw new Error('المشروع غير مرتبط بـ GitHub.');
  const {owner,name}=parts(project.repositoryUrl);
- const runs=await api<{workflow_runs:Array<{id:number;status:string;conclusion:string|null}>}>(`https://api.github.com/repos/${owner}/${name}/actions/runs?per_page=50`);
+ const runs=await api<{workflow_runs:Array<{id:number;status:string;conclusion:string|null}>}>(userId,`https://api.github.com/repos/${owner}/${name}/actions/runs?per_page=50`);
  const completed=runs.workflow_runs.find(x=>x.status==='completed'&&x.conclusion==='success');
  if(!completed)throw new Error('لا يوجد بناء Android ناجح.');
- const artifacts=await api<{artifacts:Array<{name:string;expired:boolean;archive_download_url:string}>}>(`https://api.github.com/repos/${owner}/${name}/actions/runs/${completed.id}/artifacts?per_page=50`);
+ const artifacts=await api<{artifacts:Array<{name:string;expired:boolean;archive_download_url:string}>}>(userId,`https://api.github.com/repos/${owner}/${name}/actions/runs/${completed.id}/artifacts?per_page=50`);
  const apk=artifacts.artifacts.find(x=>x.name==='bmz-ai-mobile-debug-apk'&&!x.expired) ?? artifacts.artifacts.find(x=>x.name==='bmz-ai-debug-apk'&&!x.expired);
  if(!apk)throw new Error('لا يوجد APK محفوظ في هذا البناء.');
  const archive=raw(userId,await Promise.resolve(apk.archive_download_url));
@@ -35,9 +35,9 @@ export async function downloadLatestArtifactNamed(projectId:string,userId:string
  const project=await getProject(projectId,userId);
  if(!project?.repositoryUrl)throw new Error('المشروع غير مرتبط بـ GitHub.');
  const {owner,name}=parts(project.repositoryUrl);
- const runs=await api<{workflow_runs:Array<{id:number;status:string;conclusion:string|null}>}>(`https://api.github.com/repos/${owner}/${name}/actions/runs?per_page=100`);
+ const runs=await api<{workflow_runs:Array<{id:number;status:string;conclusion:string|null}>}>(userId,`https://api.github.com/repos/${owner}/${name}/actions/runs?per_page=100`);
  for(const run of runs.workflow_runs.filter(x=>x.status==='completed'&&x.conclusion==='success')){
-   const artifacts=await api<{artifacts:Array<{name:string;expired:boolean;archive_download_url:string}>}>(`https://api.github.com/repos/${owner}/${name}/actions/runs/${run.id}/artifacts?per_page=100`);
+   const artifacts=await api<{artifacts:Array<{name:string;expired:boolean;archive_download_url:string}>}>(userId,`https://api.github.com/repos/${owner}/${name}/actions/runs/${run.id}/artifacts?per_page=100`);
    const artifact=artifacts.artifacts.find(x=>x.name===artifactName&&!x.expired);
    if(artifact){
      const archive=await raw(userId,artifact.archive_download_url);
