@@ -102,7 +102,7 @@ export async function importGitHubRepository(projectId: string, repositoryUrl: s
     );
     if (blob.encoding !== 'base64' || typeof blob.content !== 'string') continue;
 
-    const raw = Buffer.from(blob.content.replace(/\\s/g, ''), 'base64');
+    const raw = Buffer.from(blob.content.replace(/\s/g, ''), 'base64');
     if (raw.length > MAX_FILE_BYTES || totalBytes + raw.length > MAX_TOTAL_BYTES) continue;
 
     const relative = safeRelativePath(file.path);
