@@ -4,15 +4,32 @@ import { spawn } from 'node:child_process';
 import { createSandboxWorkspace } from './sandbox-core.js';
 
 const allowed = new Set(['node', 'npm', 'npx', 'tsc']);
+const MAX_OUTPUT = 100000;
+const MAX_TIMEOUT_MS = 30000;
 
 function safePath(root: string, relativePath: string): string {
+  if (!relativePath || path.isAbsolute(relativePath)) {
+    throw new Error('المسار يجب أن يكون نسبيًا داخل Sandbox.');
+  }
   const target = path.resolve(root, relativePath);
   const relative = path.relative(root, target);
-  if (relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('المسار خارج Sandbox غير مسموح.');
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error('المسار خارج Sandbox غير مسموح.');
+  }
   return target;
 }
 
-export async function writeFileInSandbox(projectId: string | undefined, relativePath: string, content: string) {
+function bounded(value: string): string {
+  return value.length > MAX_OUTPUT
+    ? `${value.slice(0, MAX_OUTPUT)}\n[تم اقتطاع المخرجات]`
+    : value;
+}
+
+export async function writeFileInSandbox(
+  projectId: string | undefined,
+  relativePath: string,
+  content: string,
+) {
   const workspace = await createSandboxWorkspace(projectId);
   const target = safePath(workspace.directory, relativePath);
   await fs.mkdir(path.dirname(target), { recursive: true });
@@ -23,30 +40,50 @@ export async function writeFileInSandbox(projectId: string | undefined, relative
 export async function readFileInSandbox(projectId: string | undefined, relativePath: string) {
   const workspace = await createSandboxWorkspace(projectId);
   const target = safePath(workspace.directory, relativePath);
-  return { workspaceId: workspace.id, path: relativePath, content: await fs.readFile(target, 'utf8') };
+  return {
+    workspaceId: workspace.id,
+    path: relativePath,
+    content: await fs.readFile(target, 'utf8'),
+  };
 }
 
-export async function runCommandInSandbox(projectId: string | undefined, command: string, args: string[] = []) {
+export async function runCommandInSandbox(
+  projectId: string | undefined,
+  command: string,
+  args: string[] = [],
+) {
   if (!allowed.has(command)) throw new Error('الأمر غير مسموح داخل Sandbox.');
+  if (args.length > 50 || args.some((arg) => arg.length > 4000)) {
+    throw new Error('معطيات الأمر تتجاوز الحدود المسموح بها.');
+  }
+
   const workspace = await createSandboxWorkspace(projectId);
   return new Promise<{ workspaceId: string; code: number; stdout: string; stderr: string }>((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: workspace.directory,
       shell: false,
       windowsHide: true,
-      timeout: 30000,
-      env: { PATH: process.env.PATH ?? '', NODE_ENV: 'test' },
+      timeout: MAX_TIMEOUT_MS,
+      env: {
+        PATH: process.env.PATH ?? '',
+        NODE_ENV: 'test',
+      },
     });
+
     let stdout = '';
     let stderr = '';
-    child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
-    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+    child.stdout.on('data', (chunk) => {
+      stdout = bounded(stdout + chunk.toString());
+    });
+    child.stderr.on('data', (chunk) => {
+      stderr = bounded(stderr + chunk.toString());
+    });
     child.on('error', reject);
     child.on('close', (code) => resolve({
       workspaceId: workspace.id,
       code: code ?? 1,
-      stdout: stdout.slice(0, 100000),
-      stderr: stderr.slice(0, 100000),
+      stdout,
+      stderr,
     }));
   });
 }
