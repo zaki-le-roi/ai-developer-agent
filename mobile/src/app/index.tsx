@@ -26,9 +26,10 @@ export default function HomeScreen(){
 
  const base=projectId?apiBase+'/api/projects/'+projectId:'';
 
+ function updateApiBase(value:string){setApiBase(value);void SecureStore.setItemAsync('bmz_api_base',value.trim());}
  async function apiFetch(url:string,init?:RequestInit){const headers=new Headers(init?.headers);if(token)headers.set('Authorization','Bearer '+token);return fetch(url,{...init,headers});}
  async function authenticate(){setAuthBusy(true);setAuthError('');try{const r=await fetch(apiBase+'/api/auth/'+authMode,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:authEmail.trim(),password:authPassword})});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر المصادقة.');setToken(d.token);void SecureStore.setItemAsync('bmz_auth_token',d.token);setAuthPassword('');}catch(e){setAuthError(e instanceof Error?e.message:'تعذر المصادقة.')}finally{setAuthBusy(false)}}
- useEffect(()=>{void SecureStore.getItemAsync('bmz_auth_token').then(value=>{if(value)setToken(value);});},[]);
+ useEffect(()=>{void Promise.all([SecureStore.getItemAsync('bmz_auth_token'),SecureStore.getItemAsync('bmz_api_base')]).then(([savedToken,savedApiBase])=>{if(savedToken)setToken(savedToken);if(savedApiBase)setApiBase(savedApiBase);});},[]);
  useEffect(()=>{if(token){void SecureStore.setItemAsync('bmz_auth_token',token);void loadProjects();}},[token]);
  useEffect(()=>{if(!projectId)return;void refreshAll();const timer=setInterval(()=>{void refreshAll();},3000);return()=>clearInterval(timer);},[projectId,token]);
 
@@ -90,7 +91,7 @@ export default function HomeScreen(){
   <View style={s.top}><View><Text style={s.brand}>BMZ AI</Text><Text style={s.subtitle}>وكيل تطوير حقيقي — خطط، نفّذ، اختبر، أصلح</Text></View><View style={s.statusDot}/></View>
   {!projectId?<ScrollView contentContainerStyle={s.start}>
     <Text style={s.hero}>ماذا تريد أن نبني؟</Text><Text style={s.heroSub}>اكتب طلبك بلغة طبيعية، وBMZ AI يتولى التخطيط والتنفيذ داخل Sandbox.</Text>
-    <TextInput value={apiBase} onChangeText={setApiBase} autoCapitalize="none" autoCorrect={false} placeholder="عنوان Backend" placeholderTextColor="#718078" style={s.input}/>
+    <TextInput value={apiBase} onChangeText={updateApiBase} autoCapitalize="none" autoCorrect={false} placeholder="عنوان Backend" placeholderTextColor="#718078" style={s.input}/>
     <TextInput value={message} onChangeText={setMessage} placeholder="اكتب الأمر هنا... مثال: افحص المشروع وأصلح كل الأخطاء ثم اختبره" placeholderTextColor="#718078" style={s.command} multiline/>
     <Pressable onPress={()=>void send()} disabled={!message.trim()||sending} style={s.primary}><Text style={s.primaryText}>{sending?'جارٍ التنفيذ…':'▶ تنفيذ الأمر'}</Text></Pressable>
     <View style={s.quick}>{quick.map(([t,v])=><Pressable key={t} onPress={()=>setMessage(v)} style={s.chip}><Text style={s.chipText}>{t}</Text></Pressable>)}</View>
