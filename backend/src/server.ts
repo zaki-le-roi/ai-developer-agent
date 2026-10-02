@@ -10,7 +10,7 @@ import { approveRequest, consumeApproval, requestApproval } from './approval-sto
 import { listWorkspaceFiles, readWorkspaceFile, writeWorkspaceFile, deleteWorkspaceFile } from './workspace-service.js';
 import { commitWorkspaceToGitHub } from './github-write.js';
 import { latestAndroidBuild, downloadLatestAndroidArtifact, downloadLatestArtifactNamed, downloadLatestMobileArtifact } from './github-actions.js';
-import { runCommandInSandbox } from './sandbox-tools.js';
+import { runCommandInSandbox, makeDirectoryInSandbox, renameInSandbox, searchInSandbox } from './sandbox-tools.js';
 import { listTasks, getTask } from './task-store.js';
 import { enqueueAgentTask, cancelTask, runTask, pauseTask, resumeTask, retryTask } from './task-queue.js';
 import { listAllTasks } from './task-store.js';
@@ -133,6 +133,9 @@ app.get('/api/projects/:id/files', async (req, res) => {
   catch(error){ res.status(400).json({success:false,error:error instanceof Error?error.message:'تعذر قراءة الملفات.'}); }
 });
 
+app.post('/api/projects/:id/directory',async(req,res)=>{const p=await getProject(req.params.id,res.locals.user.id);if(!p){res.status(404).json({success:false,error:'project not found'});return;}try{res.json({success:true,...await makeDirectoryInSandbox(p.id,String(req.body?.path??''))});}catch(e){res.status(400).json({success:false,error:e instanceof Error?e.message:'تعذر إنشاء المجلد.'});}});
+app.post('/api/projects/:id/rename',async(req,res)=>{const p=await getProject(req.params.id,res.locals.user.id);if(!p){res.status(404).json({success:false,error:'project not found'});return;}try{res.json({success:true,...await renameInSandbox(p.id,String(req.body?.from??''),String(req.body?.to??''))});}catch(e){res.status(400).json({success:false,error:e instanceof Error?e.message:'تعذر إعادة التسمية.'});}});
+app.get('/api/projects/:id/search',async(req,res)=>{const p=await getProject(req.params.id,res.locals.user.id);if(!p){res.status(404).json({success:false,error:'project not found'});return;}try{res.json({success:true,...await searchInSandbox(p.id,typeof req.query.q==='string'?req.query.q:'')});}catch(e){res.status(400).json({success:false,error:e instanceof Error?e.message:'تعذر البحث.'});}});
 app.get('/api/projects/:id/file', async (req, res) => {
   const project = await getProject(req.params.id, res.locals.user.id);
   const file = typeof req.query.path === 'string' ? req.query.path : '';
