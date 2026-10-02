@@ -6,7 +6,7 @@ export function createOllamaProvider():ModelProvider|null{
   const model=env('OLLAMA_MODEL');
   if(!model)return null;
   return {name:`ollama:${model}`,generate:async(prompt:string)=>{
-    const response=await fetch(`${base.replace(/\\/$/,'')}/api/generate`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model,prompt,stream:false})});
+    const response=await fetch(`${base.endsWith('/')?base.slice(0,-1):base}/api/generate`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model,prompt,stream:false})});
     if(!response.ok)throw new Error(`Ollama HTTP ${response.status}`);
     const data=await response.json() as {response?:unknown};
     if(typeof data.response!=='string')throw new Error('Ollama لم يُرجع نصًا صالحًا.');
