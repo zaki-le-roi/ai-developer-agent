@@ -1,0 +1,20 @@
+-- BMZ AI foundation schema. The runtime also applies this schema for first-run local development.
+CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY,email TEXT UNIQUE NOT NULL,password_hash TEXT NOT NULL,created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS sessions(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,token_hash TEXT UNIQUE NOT NULL,expires_at TEXT NOT NULL,created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY,user_id TEXT,name TEXT NOT NULL,repository_url TEXT,created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS workspaces(id TEXT PRIMARY KEY,project_id TEXT NOT NULL,path TEXT NOT NULL,created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS tasks(id TEXT PRIMARY KEY,user_id TEXT,project_id TEXT,status TEXT NOT NULL,message TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS task_runs(id TEXT PRIMARY KEY,task_id TEXT NOT NULL,status TEXT NOT NULL,started_at TEXT,finished_at TEXT,error TEXT);
+CREATE TABLE IF NOT EXISTS agents(id TEXT PRIMARY KEY,user_id TEXT,name TEXT NOT NULL,mode TEXT NOT NULL,created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS agent_runs(id TEXT PRIMARY KEY,task_id TEXT,mode TEXT NOT NULL,status TEXT NOT NULL,started_at TEXT NOT NULL,finished_at TEXT);
+CREATE TABLE IF NOT EXISTS tool_calls(id TEXT PRIMARY KEY,agent_run_id TEXT,tool TEXT NOT NULL,status TEXT NOT NULL,input_json TEXT,output_json TEXT,created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS workflows(id TEXT PRIMARY KEY,user_id TEXT,project_id TEXT,name TEXT NOT NULL,definition_json TEXT NOT NULL,created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS workflow_nodes(id TEXT PRIMARY KEY,workflow_id TEXT NOT NULL,node_type TEXT NOT NULL,config_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS workflow_runs(id TEXT PRIMARY KEY,workflow_id TEXT NOT NULL,status TEXT NOT NULL,started_at TEXT NOT NULL,finished_at TEXT);
+CREATE TABLE IF NOT EXISTS integrations(id TEXT PRIMARY KEY,user_id TEXT,provider TEXT NOT NULL,status TEXT NOT NULL,config_json TEXT);
+CREATE TABLE IF NOT EXISTS credentials(id TEXT PRIMARY KEY,user_id TEXT,provider TEXT NOT NULL,ciphertext TEXT NOT NULL,created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS permissions(id TEXT PRIMARY KEY,user_id TEXT NOT NULL,project_id TEXT,permission TEXT NOT NULL,enabled INTEGER NOT NULL,scope TEXT,created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS approvals(id TEXT PRIMARY KEY,user_id TEXT,project_id TEXT,action TEXT NOT NULL,status TEXT NOT NULL,reason TEXT NOT NULL,created_at TEXT NOT NULL,expires_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS logs(id TEXT PRIMARY KEY,user_id TEXT,project_id TEXT,level TEXT NOT NULL,message TEXT NOT NULL,metadata_json TEXT,created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS schedules(id TEXT PRIMARY KEY,user_id TEXT,workflow_id TEXT NOT NULL,cron TEXT NOT NULL,enabled INTEGER NOT NULL,created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS notifications(id TEXT PRIMARY KEY,user_id TEXT,type TEXT NOT NULL,payload_json TEXT NOT NULL,read_at TEXT,created_at TEXT NOT NULL);
