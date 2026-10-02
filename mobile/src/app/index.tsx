@@ -16,8 +16,10 @@ export default function HomeScreen(){
  const [tab,setTab]=useState<Tab>('agent'),[logs,setLogs]=useState<Msg[]>([]),[approval,setApproval]=useState<Approval|null>(null);
  const [previewKey,setPreviewKey]=useState(0),[commitStatus,setCommitStatus]=useState('');
  const [buildStatus,setBuildStatus]=useState('');
- async function refreshBuild(){if(!projectId)return;try{const r=await fetch(base+'/github/build');const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر قراءة البناء.');if(!d.found){setBuildStatus('لا يوجد بناء GitHub بعد.');return;}const run=d.run;setBuildStatus(run.status==='completed'?(run.conclusion==='success'?'بناء Android ناجح — APK متاح في GitHub Actions.':'فشل بناء Android.'):'بناء Android قيد التنفيذ...');if(run.status==='completed'&&run.conclusion==='success')setCommitStatus('يمكن تنزيل APK من تشغيل GitHub Actions.');}catch(e){setBuildStatus(e instanceof Error?e.message:'تعذر قراءة البناء.');}}
+ const [artifactAvailable,setArtifactAvailable]=useState(false);
+ async function refreshBuild(){if(!projectId)return;try{const r=await fetch(base+'/github/build');const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر قراءة البناء.');if(!d.found){setBuildStatus('لا يوجد بناء GitHub بعد.');setArtifactAvailable(false);return;}const run=d.run;setArtifactAvailable(Boolean(d.artifact));setBuildStatus(run.status==='completed'?(run.conclusion==='success'?'بناء Android ناجح — APK متاح في GitHub Actions.':'فشل بناء Android.'):'بناء Android قيد التنفيذ...');if(run.status==='completed'&&run.conclusion==='success'&&d.artifact)setCommitStatus('APK جاهز للتنزيل من داخل BMZ AI.');}catch(e){setBuildStatus(e instanceof Error?e.message:'تعذر قراءة البناء.');}}
  const {width}=useWindowDimensions(); const wide=width>=800;
+ useEffect(()=>{if(!projectId)return;void refreshBuild();const timer=setInterval(()=>void refreshBuild(),5000);return()=>clearInterval(timer);},[projectId]);
  const base=projectId?API_URL+'/api/projects/'+projectId:'';
  async function ensureProject(){
   if(projectId)return projectId;
@@ -68,7 +70,7 @@ export default function HomeScreen(){
    </>
    }
   </View>
-  <View style={s.actions}><View style={s.actionRow}><Pressable onPress={commit} disabled={!projectId||sending} style={s.commit}><Text style={s.commitText}>حفظ إلى GitHub</Text></Pressable><Pressable onPress={()=>void refreshBuild()} disabled={!projectId} style={s.secondaryBtn}><Text style={s.secondaryText}>حالة APK</Text></Pressable></View>{commitStatus?<Text style={s.status}>{commitStatus}</Text>:null}{buildStatus?<Text style={s.status}>{buildStatus}</Text>:null}</View>
+  <View style={s.actions}><View style={s.actionRow}><Pressable onPress={commit} disabled={!projectId||sending} style={s.commit}><Text style={s.commitText}>حفظ إلى GitHub</Text></Pressable><Pressable onPress={()=>void refreshBuild()} disabled={!projectId} style={s.secondaryBtn}><Text style={s.secondaryText}>حالة APK</Text></Pressable>{artifactAvailable&&<Pressable onPress={()=>void Linking.openURL(base+'/github/build/apk')} style={s.secondaryBtn}><Text style={s.secondaryText}>تنزيل APK</Text></Pressable>}</View>{commitStatus?<Text style={s.status}>{commitStatus}</Text>:null}{buildStatus?<Text style={s.status}>{buildStatus}</Text>:null}</View>
   <View style={s.composer}><TextInput value={message} onChangeText={setMessage} placeholder="اكتب: أنشئ تطبيقًا، أصلح الخطأ، افحص المشروع..." placeholderTextColor="#777" style={s.message} multiline/><Pressable onPress={()=>void send()} disabled={!message.trim()||sending} style={s.send}><Text style={s.sendText}>{sending?'…':'↑'}</Text></Pressable></View>
   {approval&&<View style={s.approval}><Text style={s.approvalText}>{approval.reason}</Text><Pressable onPress={()=>void approve()} style={s.approve}><Text style={s.approveText}>موافقة وتنفيذ</Text></Pressable></View>}
  </KeyboardAvoidingView></SafeAreaView>
