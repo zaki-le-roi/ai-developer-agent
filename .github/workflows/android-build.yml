@@ -1,4 +1,5 @@
 name: BMZ AI Android Build
+# Final GitHub-only Android pipeline
 
 on:
   workflow_dispatch:
