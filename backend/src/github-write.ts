@@ -19,6 +19,7 @@ export async function commitWorkspaceToGitHub(projectId:string,message:string){
  const created=await api<{sha:string}>(`https://api.github.com/repos/${owner}/${name}/git/trees`,{method:'POST',body:JSON.stringify({base_tree:base.tree.sha,tree})});
  const commit=await api<{sha:string}>(`https://api.github.com/repos/${owner}/${name}/git/commits`,{method:'POST',body:JSON.stringify({message:message.slice(0,200)||'BMZ AI update',tree:created.sha,parents:[ref.object.sha]})});
  await api(`https://api.github.com/repos/${owner}/${name}/git/refs/heads/${branch}`,{method:'PATCH',body:JSON.stringify({sha:commit.sha,force:false})});
- await api(`https://api.github.com/repos/${owner}/${name}/dispatches`,{method:'POST',body:JSON.stringify({event_type:'bmz_android_build',client_payload:{projectPath:'.',commitSha:commit.sha}})});
- return {repository:`${owner}/${name}`,branch,commitSha:commit.sha};
+ let buildTriggered=false;
+ try { await api(`https://api.github.com/repos/${owner}/${name}/dispatches`,{method:'POST',body:JSON.stringify({event_type:'bmz_android_build',client_payload:{projectPath:'.',commitSha:commit.sha}})}); buildTriggered=true; } catch { buildTriggered=false; }
+ return {repository:`${owner}/${name}`,branch,commitSha:commit.sha,buildTriggered};
 }
