@@ -1,18 +1,20 @@
 import { promises as fs } from 'node:fs';
-import path from 'node:path';
-import type { AgentPlan, CoreAction, CoreObservation, PermissionLevel } from '../../shared/contracts.js';
+import type {
+  AgentAction,
+  AgentPlan,
+  CoreObservation,
+  PermissionLevel,
+} from '../../shared/contracts.js';
 import { authorizeAction } from './orchestrator.js';
-import {
-  createSandboxWorkspace,
-  type SandboxWorkspace,
-} from './sandbox-core.js';
+import type { ModelProvider } from './model-provider.js';
+import { createSandboxWorkspace, type SandboxWorkspace } from './sandbox-core.js';
 import {
   readFileInSandbox,
   runCommandInSandbox,
   writeFileInSandbox,
 } from './sandbox-tools.js';
 
-const MAX_ITERATIONS = 6;
+const MAX_ITERATIONS = 8;
 
 async function inspectWorkspace(workspace: SandboxWorkspace): Promise<CoreObservation> {
   const entries = await fs.readdir(workspace.directory, { withFileTypes: true });
@@ -28,7 +30,7 @@ async function inspectWorkspace(workspace: SandboxWorkspace): Promise<CoreObserv
 
 async function executeAction(
   projectId: string | undefined,
-  action: CoreAction,
+  action: AgentAction,
   level: PermissionLevel,
 ): Promise<CoreObservation> {
   const decision = authorizeAction(action, level);
@@ -39,9 +41,7 @@ async function executeAction(
   try {
     const workspace = await createSandboxWorkspace(projectId);
 
-    if (action.type === 'inspect_workspace') {
-      return inspectWorkspace(workspace);
-    }
+    if (action.type === 'inspect_workspace') return inspectWorkspace(workspace);
 
     if (action.type === 'read_file') {
       const result = await readFileInSandbox(projectId, action.path);
@@ -73,7 +73,10 @@ async function executeAction(
       };
     }
 
-    const result = await runCommandInSandbox(projectId, 'node', ['-e', 'console.log("BMZ AI test: OK")']);
+    const result = await runCommandInSandbox(projectId, 'node', [
+      '-e',
+      'console.log("BMZ AI test: OK")',
+    ]);
     return {
       action: 'test',
       ok: result.code === 0,
@@ -90,10 +93,58 @@ async function executeAction(
   }
 }
 
+function extractJson(text: string): unknown {
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start < 0 || end <= start) throw new Error('لم يُرجع مكوّن الإصلاح إجراء JSON صالحًا.');
+  return JSON.parse(text.slice(start, end + 1)) as unknown;
+}
+
+function isAction(value: unknown): value is AgentAction {
+  if (!value || typeof value !== 'object') return false;
+  const item = value as Record<string, unknown>;
+  if (typeof item.type !== 'string') return false;
+  if (!['inspect_workspace', 'read_file', 'write_file', 'run_command', 'test'].includes(item.type)) return false;
+  if (item.type === 'read_file' && typeof item.path !== 'string') return false;
+  if (item.type === 'write_file' && (typeof item.path !== 'string' || typeof item.content !== 'string')) return false;
+  if (item.type === 'run_command') {
+    if (typeof item.command !== 'string') return false;
+    if (item.args !== undefined && (!Array.isArray(item.args) || item.args.some((arg) => typeof arg !== 'string'))) return false;
+  }
+  return true;
+}
+
+async function requestRepair(
+  provider: ModelProvider | undefined,
+  goal: string,
+  observation: CoreObservation,
+): Promise<AgentAction | null> {
+  if (!provider || provider.name === 'unconfigured') return null;
+
+  try {
+    const generated = await provider.generate([
+      'أنت مكوّن الإصلاح داخل BMZ AI نفسه.',
+      'حلّل نتيجة العملية الفاشلة واقترح إجراءً واحدًا فقط لإصلاحها داخل Sandbox.',
+      'أرجع JSON فقط بالشكل {"action":{...}}.',
+      'الأنواع المسموحة: read_file, write_file, run_command, test.',
+      'لا تستخدم مسارات مطلقة. لا تستخدم أوامر shell مركبة.',
+      `المهمة: ${goal}`,
+      `النتيجة الفاشلة: ${JSON.stringify(observation)}`,
+    ].join('\n'));
+    const parsed = extractJson(generated);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const action = (parsed as Record<string, unknown>).action;
+    return isAction(action) ? action : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function runCoreLoop(
   projectId: string | undefined,
   plan: AgentPlan,
   level: PermissionLevel = 'sandbox',
+  provider?: ModelProvider,
 ): Promise<{
   status: 'completed' | 'failed';
   message: string;
@@ -101,34 +152,51 @@ export async function runCoreLoop(
   observations: CoreObservation[];
 }> {
   const observations: CoreObservation[] = [];
+  const queue: AgentAction[] = plan.steps
+    .map((step) => step.action)
+    .filter((action): action is AgentAction => Boolean(action));
+
+  if (!queue.length) queue.push({ type: 'inspect_workspace' }, { type: 'test' });
+
   let iterations = 0;
 
-  const actions: CoreAction[] = [
-    { type: 'inspect_workspace' },
-    { type: 'test' },
-  ];
-
-  if (plan.goal.trim()) {
-    actions.unshift({
-      type: 'write_file',
-      path: '.bmz-task.txt',
-      content: plan.goal.trim(),
-    });
-  }
-
-  for (const action of actions.slice(0, MAX_ITERATIONS)) {
+  while (queue.length && iterations < MAX_ITERATIONS) {
+    const action = queue.shift()!;
     iterations += 1;
     const observation = await executeAction(projectId, action, level);
     observations.push(observation);
 
-    if (!observation.ok && action.type === 'test') {
+    if (observation.ok) continue;
+
+    const repair = await requestRepair(provider, plan.goal, observation);
+    if (repair && iterations < MAX_ITERATIONS) {
+      observations.push({
+        action: 'inspect_workspace',
+        ok: true,
+        summary: 'تم طلب إجراء إصلاح من مكوّن الاستدلال داخل BMZ AI.',
+      });
+      queue.unshift(repair);
+      if (action.type === 'test') queue.push({ type: 'test' });
+      continue;
+    }
+
+    if (action.type === 'test' || queue.length === 0) {
       return {
         status: 'failed',
-        message: 'فشل الاختبار النهائي داخل Sandbox.',
+        message: `توقفت دورة BMZ AI بعد فشل العملية: ${observation.summary}`,
         iterations,
         observations,
       };
     }
+  }
+
+  if (queue.length > 0) {
+    return {
+      status: 'failed',
+      message: 'تجاوزت دورة BMZ AI الحد الآمن لعدد عمليات التنفيذ.',
+      iterations,
+      observations,
+    };
   }
 
   const failed = observations.some((item) => !item.ok);
@@ -136,7 +204,7 @@ export async function runCoreLoop(
     status: failed ? 'failed' : 'completed',
     message: failed
       ? 'اكتملت دورة BMZ AI مع أخطاء تحتاج إلى معالجة.'
-      : 'اكتملت دورة BMZ AI: تنفيذ داخل Sandbox ثم تحقق.',
+      : 'اكتملت دورة BMZ AI: خطة ثم تنفيذ ثم تحقق داخل Sandbox.',
     iterations,
     observations,
   };
