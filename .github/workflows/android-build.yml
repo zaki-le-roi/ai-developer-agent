@@ -11,6 +11,7 @@ on:
       - 'settings.gradle'
       - 'settings.gradle.kts'
       - '.github/workflows/android-build.yml'
+      - 'mobile/**'
 
 jobs:
   android:
