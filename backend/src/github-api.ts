@@ -1,0 +1,8 @@
+type Repo={owner:string;name:string};
+function parse(url:string):Repo{const u=new URL(url);if(u.protocol!=='https:'||u.hostname!=='github.com')throw new Error('رابط GitHub غير صالح.');const p=u.pathname.split('/').filter(Boolean);if(p.length<2)throw new Error('رابط المستودع غير صالح.');return{owner:p[0],name:p[1].replace(/\.git$/i,'')}}
+async function api<T>(url:string,init?:RequestInit){const credential=process.env.GITHUB_TOKEN;if(!credential)throw new Error('GitHub credential غير مضبوط على الخادم.');const r=await fetch(url,{...init,headers:{Accept:'application/vnd.github+json','Content-Type':'application/json',Authorization:`Bearer ${credential}`,'X-GitHub-Api-Version':'2022-11-28','User-Agent':'BMZ-AI'}});if(!r.ok)throw new Error(`GitHub API HTTP ${r.status}`);return r.status===204?null as T:await r.json() as T}
+export async function githubRepo(url:string){const p=parse(url);return api<any>(`https://api.github.com/repos/${p.owner}/${p.name}`)}
+export async function branches(url:string){const p=parse(url);return api<any[]>(`https://api.github.com/repos/${p.owner}/${p.name}/branches?per_page=100`)}
+export async function issues(url:string){const p=parse(url);return api<any[]>(`https://api.github.com/repos/${p.owner}/${p.name}/issues?state=open&per_page=100`)}
+export async function pullRequests(url:string){const p=parse(url);return api<any[]>(`https://api.github.com/repos/${p.owner}/${p.name}/pulls?state=open&per_page=100`)}
+export async function actions(url:string){const p=parse(url);return api<any>(`https://api.github.com/repos/${p.owner}/${p.name}/actions/runs?per_page=20`)}
