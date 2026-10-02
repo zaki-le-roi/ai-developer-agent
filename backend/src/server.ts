@@ -32,7 +32,8 @@ const RATE_LIMIT = 60;
 
 app.use((req, res, next) => {
   const configuredKey = process.env.BMZ_API_KEY?.trim();
-  if (configuredKey && req.header('x-bmz-key') !== configuredKey) {
+  const publicPath=req.path.startsWith('/api/auth/')||req.path==='/api/github/oauth/callback'||req.path.startsWith('/api/webhooks/trigger/');
+  if (configuredKey && !publicPath && req.header('x-bmz-key') !== configuredKey) {
     res.status(401).json({ success: false, error: 'مفتاح BMZ AI غير صالح أو مفقود.' });
     return;
   }
