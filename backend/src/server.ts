@@ -9,6 +9,7 @@ import { createSession, getSession, touchSession } from './session-store.js';
 import { approveRequest, consumeApproval, requestApproval } from './approval-store.js';
 import { listWorkspaceFiles, readWorkspaceFile, writeWorkspaceFile } from './workspace-service.js';
 import { commitWorkspaceToGitHub } from './github-write.js';
+import { latestAndroidBuild } from './github-actions.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
@@ -127,6 +128,13 @@ app.get('/api/projects/:id/preview', async (req, res) => {
   } catch(error) {
     res.status(404).type('text/plain').send(error instanceof Error ? error.message : 'لا توجد معاينة.');
   }
+});
+
+app.get('/api/projects/:id/github/build', async (req, res) => {
+  const project = await getProject(req.params.id);
+  if (!project) { res.status(404).json({success:false,error:'project not found'}); return; }
+  try { res.json({success:true, ...(await latestAndroidBuild(project.id))}); }
+  catch(error){ res.status(400).json({success:false,error:error instanceof Error?error.message:'تعذر قراءة حالة بناء Android.'}); }
 });
 
 app.post('/api/projects/:id/github/commit', async (req, res) => {
