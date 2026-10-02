@@ -60,7 +60,7 @@ export async function handleAgentRequest(request: AgentRequest): Promise<AgentRe
   }
 
   for (const step of plan.steps) step.status = 'running';
-  const core = await runCoreLoop(projectId ?? undefined, plan, permissionLevel, provider, request.userId);
+  const core = await runCoreLoop(projectId ?? undefined, plan, permissionLevel, request.userId, provider);
 
   plan.steps.forEach((step, index) => {
     step.status = index < core.iterations
