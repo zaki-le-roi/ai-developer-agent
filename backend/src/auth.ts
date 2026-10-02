@@ -34,12 +34,11 @@ export async function register(email: string, password: string) {
 }
 
 export function login(email: string, password: string) {
-  const db = getDb();
-  const user = db.prepare('SELECT id,email,password_hash FROM users WHERE email=?')
+  const user = getDb().prepare('SELECT id,email,password_hash FROM users WHERE email=?')
     .get(email.toLowerCase()) as { id: string; email: string; password_hash: string } | undefined;
   if (!user || !verifyPassword(password, user.password_hash)) throw new Error('بيانات الدخول غير صحيحة.');
   const token = randomBytes(32).toString('base64url');
-  db.prepare('INSERT INTO sessions(id,user_id,token_hash,expires_at,created_at) VALUES(?,?,?,?,?)')
+  getDb().prepare('INSERT INTO sessions(id,user_id,token_hash,expires_at,created_at) VALUES(?,?,?,?,?)')
     .run(randomUUID(), user.id, hashToken(token), new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString(), new Date().toISOString());
   return { token, user: { id: user.id, email: user.email } };
 }
