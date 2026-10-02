@@ -8,6 +8,32 @@ import { importGitHubRepository } from './github-import.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
+const requestCounts = new Map<string, { startedAt: number; count: number }>();
+const RATE_WINDOW_MS = 60_000;
+const RATE_LIMIT = 60;
+
+app.use((req, res, next) => {
+  const configuredKey = process.env.BMZ_API_KEY?.trim();
+  if (configuredKey && req.header('x-bmz-key') !== configuredKey) {
+    res.status(401).json({ success: false, error: 'مفتاح BMZ AI غير صالح أو مفقود.' });
+    return;
+  }
+
+  const now = Date.now();
+  const key = req.ip || 'unknown';
+  const current = requestCounts.get(key);
+  if (!current || now - current.startedAt >= RATE_WINDOW_MS) {
+    requestCounts.set(key, { startedAt: now, count: 1 });
+    next();
+    return;
+  }
+  if (current.count >= RATE_LIMIT) {
+    res.status(429).json({ success: false, error: 'تم تجاوز حد الطلبات المؤقت.' });
+    return;
+  }
+  current.count += 1;
+  next();
+});
 
 app.use(express.json({ limit: '1mb' }));
 
