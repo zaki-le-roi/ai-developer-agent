@@ -18,14 +18,33 @@ export type AgentRequest = {
   projectId?: string;
 };
 
+export type CoreAction =
+  | { type: 'inspect_workspace' }
+  | { type: 'read_file'; path: string }
+  | { type: 'write_file'; path: string; content: string }
+  | { type: 'run_command'; command: string; args?: string[] }
+  | { type: 'test' };
+
+export type CoreObservation = {
+  action: CoreAction['type'];
+  ok: boolean;
+  summary: string;
+  stdout?: string;
+  stderr?: string;
+};
+
+export type AgentExecution = {
+  status: 'awaiting_execution' | 'running' | 'completed' | 'failed';
+  message: string;
+  iterations: number;
+  observations: CoreObservation[];
+};
+
 export type AgentResponse = {
   success: boolean;
   projectId: string | null;
   plan?: AgentPlan;
-  execution?: {
-    status: 'awaiting_execution' | 'completed' | 'failed';
-    message: string;
-  };
+  execution?: AgentExecution;
   assistantMessage?: string;
   error?: string;
 };
