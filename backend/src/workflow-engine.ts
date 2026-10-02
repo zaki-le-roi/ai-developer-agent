@@ -58,6 +58,9 @@ async function executeNode(node:WorkflowNode,projectId:string,outputs:Map<string
     case 'HttpRequest':{
       const url=new URL(String(config.url??''));
       if(url.protocol!=='https:')throw new Error('HttpRequest يسمح فقط بـ HTTPS.');
+      const allowlist=(process.env.BMZ_HTTP_ALLOWLIST??'').split(',').map(x=>x.trim()).filter(Boolean);
+      if(allowlist.length && !allowlist.some(host=>url.hostname===host||url.hostname.endsWith('.'+host)))throw new Error('النطاق غير موجود في BMZ_HTTP_ALLOWLIST.');
+      if(!allowlist.length && /^(localhost|127\\.|10\\.|172\\.(1[6-9]|2[0-9]|3[0-1])\\.|192\\.168\\.|::1$)/i.test(url.hostname))throw new Error('الوصول إلى عناوين الشبكات الداخلية مرفوض.');
       const response=await fetch(url,{method:String(config.method??'GET').toUpperCase(),headers:{Accept:'application/json','Content-Type':'application/json'},body:config.body===undefined?undefined:JSON.stringify(config.body)});
       const text=await response.text();
       if(text.length>100000)throw new Error('استجابة HTTP كبيرة جدًا.');
