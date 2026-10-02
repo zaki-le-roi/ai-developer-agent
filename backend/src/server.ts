@@ -7,9 +7,9 @@ import { listExecutionLogs } from './execution-store.js';
 import { importGitHubRepository } from './github-import.js';
 import { createSession, getSession, touchSession } from './session-store.js';
 import { approveRequest, consumeApproval, requestApproval } from './approval-store.js';
-import { listWorkspaceFiles, readWorkspaceFile, writeWorkspaceFile } from './workspace-service.js';
+import { listWorkspaceFiles, readWorkspaceFile, writeWorkspaceFile, deleteWorkspaceFile } from './workspace-service.js';
 import { commitWorkspaceToGitHub } from './github-write.js';
-import { latestAndroidBuild } from './github-actions.js';
+import { latestAndroidBuild, downloadLatestAndroidArtifact } from './github-actions.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
@@ -119,6 +119,14 @@ app.put('/api/projects/:id/file', async (req, res) => {
   catch(error){ res.status(400).json({success:false,error:error instanceof Error?error.message:'تعذر حفظ الملف.'}); }
 });
 
+app.delete('/api/projects/:id/file', async (req, res) => {
+  const project = await getProject(req.params.id);
+  const file = typeof req.body?.path === 'string' ? req.body.path : '';
+  if (!project) { res.status(404).json({success:false,error:'project not found'}); return; }
+  try { res.json({ success:true, ...(await deleteWorkspaceFile(project.id,file)) }); }
+  catch(error){ res.status(400).json({success:false,error:error instanceof Error?error.message:'تعذر حذف الملف.'}); }
+});
+
 app.get('/api/projects/:id/preview', async (req, res) => {
   const project = await getProject(req.params.id);
   if (!project) { res.status(404).type('text/plain').send('project not found'); return; }
@@ -135,6 +143,17 @@ app.get('/api/projects/:id/github/build', async (req, res) => {
   if (!project) { res.status(404).json({success:false,error:'project not found'}); return; }
   try { res.json({success:true, ...(await latestAndroidBuild(project.id))}); }
   catch(error){ res.status(400).json({success:false,error:error instanceof Error?error.message:'تعذر قراءة حالة بناء Android.'}); }
+});
+
+app.get('/api/projects/:id/github/build/apk', async (req, res) => {
+  const project = await getProject(req.params.id);
+  if (!project) { res.status(404).json({success:false,error:'project not found'}); return; }
+  try {
+    const artifact = await downloadLatestAndroidArtifact(project.id);
+    res.status(200).type('application/zip').set('Content-Disposition','attachment; filename="bmz-ai-debug-apk.zip"').send(artifact);
+  } catch(error) {
+    res.status(404).json({success:false,error:error instanceof Error?error.message:'لا يوجد APK جاهز للتنزيل.'});
+  }
 });
 
 app.post('/api/projects/:id/github/commit', async (req, res) => {
