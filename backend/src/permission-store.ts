@@ -17,8 +17,7 @@ async function migrateLegacy(){
     const raw=JSON.parse(await fs.readFile(file,'utf8')) as unknown;
     if(!Array.isArray(raw))return;
     const insert=db.prepare('INSERT OR IGNORE INTO permissions(id,user_id,project_id,permission,enabled,scope,created_at) VALUES(?,?,?,?,?,?,?)');
-    const tx=db.transaction((items:unknown[])=>{for(const item of items){if(!item||typeof item!=='object')continue;const g=item as Record<string,unknown>;if(typeof g.id!=='string'||typeof g.userId!=='string'||typeof g.permission!=='string'||typeof g.createdAt!=='string')continue;insert.run(g.id,g.userId,typeof g.projectId==='string'?g.projectId:null,g.permission,g.enabled===false?0:1,typeof g.scope==='string'?g.scope:null,g.createdAt);}});
-    tx(raw);
+    for(const item of raw){if(!item||typeof item!=='object')continue;const g=item as Record<string,unknown>;if(typeof g.id!=='string'||typeof g.userId!=='string'||typeof g.permission!=='string'||typeof g.createdAt!=='string')continue;insert.run(g.id,g.userId,typeof g.projectId==='string'?g.projectId:null,g.permission,g.enabled===false?0:1,typeof g.scope==='string'?g.scope:null,g.createdAt);}
   }catch{}
 }
 
