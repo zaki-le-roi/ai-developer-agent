@@ -18,7 +18,7 @@ export function createOpenAICompatibleProvider():ModelProvider|null{
   const base=env('MODEL_BASE_URL');const model=env('MODEL_NAME');const key=env('MODEL_API_KEY');
   if(!base||!model)return null;
   return {name:`openai-compatible:${model}`,generate:async(prompt:string)=>{
-    const response=await fetch(`${base.replace(/\\/$/,'')}/chat/completions`,{method:'POST',headers:{'Content-Type':'application/json',...(key?{Authorization:`Bearer ${key}`}: {})},body:JSON.stringify({model,messages:[{role:'user',content:prompt}],temperature:0})});
+    const response=await fetch(`${base.endsWith('/')?base.slice(0,-1):base}/chat/completions`,{method:'POST',headers:{'Content-Type':'application/json',...(key?{Authorization:`Bearer ${key}`}: {})},body:JSON.stringify({model,messages:[{role:'user',content:prompt}],temperature:0})});
     if(!response.ok)throw new Error(`Model HTTP ${response.status}`);
     const data=await response.json() as {choices?:Array<{message?:{content?:unknown}}>};
     const content=data.choices?.[0]?.message?.content;
