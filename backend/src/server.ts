@@ -134,7 +134,7 @@ app.post('/api/approvals/:id/approve', async (req, res) => {
   res.json({ success: true, approval });
 });
 
-app.post('/api/agent', async (req, res) =>
+app.post('/api/agent', async (req, res) => {
   const body = req.body as Partial<AgentRequest>;
   const message = typeof body.message === 'string' ? body.message.trim() : '';
   if (!message) {
