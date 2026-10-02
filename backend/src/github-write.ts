@@ -19,7 +19,7 @@ export async function commitWorkspaceToGitHub(projectId:string,userId:string,mes
  if(!items.length)throw new Error('لا توجد ملفات في مساحة العمل لإرسالها.');
  const localPaths=new Set(items.map(item=>item.path));
  const manifest=await loadManifest(ws.directory);
- const remoteTree=await api<{tree:Array<{path:string;type:string;sha:string;mode:string}>;truncated?:boolean}>(`https://api.github.com/repos/${owner}/${name}/git/trees/${ref.object.sha}?recursive=1`);
+ const remoteTree=await api<{tree:Array<{path:string;type:string;sha:string;mode:string}>;truncated?:boolean}>(userId,`https://api.github.com/repos/${owner}/${name}/git/trees/${ref.object.sha}?recursive=1`);
  if(remoteTree.truncated)throw new Error('شجرة GitHub كبيرة جدًا لمزامنة الحذف بأمان.');
  const tree:any[]=[];
  for(const item of items){const blob=await api<{sha:string}>(userId,`https://api.github.com/repos/${owner}/${name}/git/blobs`,{method:'POST',body:JSON.stringify({content:item.content.toString('base64'),encoding:'base64'})});tree.push({path:item.path,mode:'100644',type:'blob',sha:blob.sha});}
@@ -29,8 +29,8 @@ export async function commitWorkspaceToGitHub(projectId:string,userId:string,mes
  if(!tree.length)throw new Error('لا توجد تغييرات لإرسالها إلى GitHub.');
  const created=await api<{sha:string}>(userId,`https://api.github.com/repos/${owner}/${name}/git/trees`,{method:'POST',body:JSON.stringify({base_tree:base.tree.sha,tree})});
  const commit=await api<{sha:string}>(userId,`https://api.github.com/repos/${owner}/${name}/git/commits`,{method:'POST',body:JSON.stringify({message:message.slice(0,200)||'BMZ AI update',tree:created.sha,parents:[ref.object.sha]})});
- await api(`https://api.github.com/repos/${owner}/${name}/git/refs/heads/${branch}`,{method:'PATCH',body:JSON.stringify({sha:commit.sha,force:false})});
+ await api<any>(userId,`https://api.github.com/repos/${owner}/${name}/git/refs/heads/${branch}`,{method:'PATCH',body:JSON.stringify({sha:commit.sha,force:false})});
  let buildTriggered=false;
- try { await api(`https://api.github.com/repos/${owner}/${name}/dispatches`,{method:'POST',body:JSON.stringify({event_type:'bmz_android_build',client_payload:{projectPath:'.',commitSha:commit.sha}})}); buildTriggered=true; } catch { buildTriggered=false; }
+ try { await api<any>(userId,`https://api.github.com/repos/${owner}/${name}/dispatches`,{method:'POST',body:JSON.stringify({event_type:'bmz_android_build',client_payload:{projectPath:'.',commitSha:commit.sha}})}); buildTriggered=true; } catch { buildTriggered=false; }
  return {repository:`${owner}/${name}`,branch,commitSha:commit.sha,buildTriggered};
 }
