@@ -53,7 +53,7 @@ function isAction(value: unknown): value is AgentAction {
   return ['inspect_workspace', 'list_files', 'scaffold_app', 'build_android', 'preview_web', 'github_commit', 'test'].includes(String(item.type));
 }
 
-export async function createPlan(goal: string, provider?: ModelProvider): Promise<AgentPlan> {
+export async function createPlan(goal: string, provider?: ModelProvider, workspaceFiles: string[] = []): Promise<AgentPlan> {
   const fallback = fallbackPlan(goal);
   if (!provider || provider.name === 'unconfigured') return fallback;
   try {
@@ -65,6 +65,7 @@ export async function createPlan(goal: string, provider?: ModelProvider): Promis
       'الأنواع المسموحة فقط: inspect_workspace, list_files, read_file, write_file, run_command, scaffold_app, build_android, preview_web, github_commit, test.',
       'أرجع JSON فقط بالشكل {"steps":[{"id":"...","title":"...","action":{...}}]}. لا تضف نصًا خارج JSON.',
       'قسّم العمل إلى خطوات صغيرة قابلة للتنفيذ، ولا تتجاوز 40 خطوة.',
+      `ملفات مساحة العمل الحالية:\n${workspaceFiles.slice(0, 300).join('\n') || '(فارغة)'}`,
       `الطلب: ${goal}`,
     ].join('\\n'))) as Record<string, unknown>;
     if (!Array.isArray(raw.steps) || !raw.steps.length) return fallback;
