@@ -218,6 +218,8 @@ export async function runCoreLoop(
   const queue: AgentAction[] = plan.steps
     .map((step) => step.action)
     .filter((action): action is AgentAction => Boolean(action));
+  const needsVerification = queue.some((action) => ['write_file','run_command','scaffold_app','build_android'].includes(action.type));
+  if (needsVerification && !queue.some((action) => action.type === 'test')) queue.push({ type: 'test' });
 
   if (!queue.length) queue.push({ type: 'inspect_workspace' }, { type: 'test' });
 
