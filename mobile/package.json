@@ -20,10 +20,18 @@
     "react-native": "0.83.10",
     "react-native-safe-area-context": "~5.6.2",
     "react-native-web": "^0.21.0",
-    "react-native-webview": "13.15.0"
+    "react-native-webview": "13.15.0",
+    "react-native-screens": "4.25.2"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
     "typescript": "~5.9.2"
+  },
+  "expo": {
+    "install": {
+      "exclude": [
+        "react-native-screens"
+      ]
+    }
   }
 }
