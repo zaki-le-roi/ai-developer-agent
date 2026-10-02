@@ -15,6 +15,7 @@ import { listWorkspaceFiles, readWorkspaceFile } from './workspace-service.js';
 import { commitWorkspaceToGitHub } from './github-write.js';
 import {
   readFileInSandbox,
+  deleteFileInSandbox,
   runCommandInSandbox,
   writeFileInSandbox,
 } from './sandbox-tools.js';
@@ -51,7 +52,7 @@ async function executeAction(
     return { action: action.type, ok: false, summary: decision.reason };
   }
 
-  const required = action.type === 'github_commit' ? 'GITHUB_PUSH' : ['write_file','scaffold_app'].includes(action.type) ? 'WRITE_PROJECT' : ['run_command','build_android','test'].includes(action.type) ? 'RUN_COMMAND' : 'READ_PROJECT';
+  const required = action.type === 'github_commit' ? 'GITHUB_PUSH' : action.type === 'delete_file' ? 'DELETE_FILE' : ['write_file','scaffold_app'].includes(action.type) ? 'WRITE_PROJECT' : ['run_command','build_android','test'].includes(action.type) ? 'RUN_COMMAND' : 'READ_PROJECT';
   if (userId && !(await hasPermission(userId, projectId ?? null, required as any))) return { action: action.type, ok: false, summary: 'الصلاحية المطلوبة غير ممنوحة.' };
 
   try {
@@ -93,6 +94,11 @@ async function executeAction(
     if (action.type === 'build_android') {
       const result = await runCommandInSandbox(projectId, 'gradle', ['--no-daemon', 'assembleDebug']);
       return { action: action.type, ok: result.code === 0, summary: result.code === 0 ? 'تم بناء APK Android بنجاح عبر Gradle.' : `فشل بناء APK برمز ${result.code}.`, stdout: maskSecrets(result.stdout), stderr: maskSecrets(result.stderr) };
+    }
+
+    if (action.type === 'delete_file') {
+      await deleteFileInSandbox(projectId, action.path);
+      return { action: action.type, ok: true, summary: `تم حذف الملف ${action.path} داخل Sandbox.` };
     }
 
     if (action.type === 'write_file') {
@@ -166,7 +172,7 @@ function isAction(value: unknown): value is AgentAction {
   if (!value || typeof value !== 'object') return false;
   const item = value as Record<string, unknown>;
   if (typeof item.type !== 'string') return false;
-  if (!['inspect_workspace', 'list_files', 'read_file', 'write_file', 'run_command', 'scaffold_app', 'build_android', 'preview_web', 'github_commit', 'test'].includes(item.type)) return false;
+  if (!['inspect_workspace', 'list_files', 'read_file', 'write_file', 'delete_file', 'run_command', 'scaffold_app', 'build_android', 'preview_web', 'github_commit', 'test'].includes(item.type)) return false;
   if (item.type === 'read_file' && typeof item.path !== 'string') return false;
   if (item.type === 'preview_web') return true;
   if (item.type === 'github_commit') return item.message === undefined || typeof item.message === 'string';
