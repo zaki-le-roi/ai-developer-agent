@@ -40,7 +40,7 @@ export function createUnavailableProvider(): ModelProvider {
 }
 
 export function createModelProvider(): ModelProvider {
-  return process.env.OPENAI_API_KEY
+  return process.env.OPENAI_API_KEY && process.env.OPENAI_MODEL?.trim()
     ? createOpenAIProvider()
     : createUnavailableProvider();
 }
