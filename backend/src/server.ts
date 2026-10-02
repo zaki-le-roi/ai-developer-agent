@@ -6,7 +6,9 @@ import { recall } from './memory-store.js';
 import { listExecutionLogs } from './execution-store.js';
 import { importGitHubRepository } from './github-import.js';
 import { createSession, getSession, touchSession } from './session-store.js';
-import { approveRequest } from './approval-store.js';
+import { approveRequest, consumeApproval, requestApproval } from './approval-store.js';
+import { listWorkspaceFiles, readWorkspaceFile, writeWorkspaceFile } from './workspace-service.js';
+import { commitWorkspaceToGitHub } from './github-write.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
@@ -90,6 +92,55 @@ app.get('/api/projects/:id', async (req, res) => {
     return;
   }
   res.json({ success: true, project });
+});
+
+app.get('/api/projects/:id/files', async (req, res) => {
+  const project = await getProject(req.params.id);
+  if (!project) { res.status(404).json({ success:false, error:'project not found' }); return; }
+  try { res.json({ success:true, ...(await listWorkspaceFiles(project.id)) }); }
+  catch(error){ res.status(400).json({success:false,error:error instanceof Error?error.message:'تعذر قراءة الملفات.'}); }
+});
+
+app.get('/api/projects/:id/file', async (req, res) => {
+  const project = await getProject(req.params.id);
+  const file = typeof req.query.path === 'string' ? req.query.path : '';
+  if (!project) { res.status(404).json({success:false,error:'project not found'}); return; }
+  try { res.json({ success:true, ...(await readWorkspaceFile(project.id,file)) }); }
+  catch(error){ res.status(400).json({success:false,error:error instanceof Error?error.message:'تعذر قراءة الملف.'}); }
+});
+
+app.put('/api/projects/:id/file', async (req, res) => {
+  const project = await getProject(req.params.id);
+  const file = typeof req.body?.path === 'string' ? req.body.path : '';
+  const content = typeof req.body?.content === 'string' ? req.body.content : '';
+  if (!project) { res.status(404).json({success:false,error:'project not found'}); return; }
+  try { res.json({ success:true, ...(await writeWorkspaceFile(project.id,file,content)) }); }
+  catch(error){ res.status(400).json({success:false,error:error instanceof Error?error.message:'تعذر حفظ الملف.'}); }
+});
+
+app.get('/api/projects/:id/preview', async (req, res) => {
+  const project = await getProject(req.params.id);
+  if (!project) { res.status(404).type('text/plain').send('project not found'); return; }
+  try {
+    const result = await readWorkspaceFile(project.id,'index.html');
+    res.type('html').send(result.content);
+  } catch(error) {
+    res.status(404).type('text/plain').send(error instanceof Error ? error.message : 'لا توجد معاينة.');
+  }
+});
+
+app.post('/api/projects/:id/github/commit', async (req, res) => {
+  const project = await getProject(req.params.id);
+  if (!project) { res.status(404).json({success:false,error:'project not found'}); return; }
+  const message = typeof req.body?.message === 'string' ? req.body.message.trim() : 'BMZ AI update';
+  const token = typeof req.body?.approvalToken === 'string' ? req.body.approvalToken : '';
+  if (!token || !(await consumeApproval(token))) {
+    const approval = await requestApproval(project.id,'approval_required','إرسال تغييرات مساحة العمل إلى GitHub سيُنشئ Commit فعليًا في المستودع.');
+    res.status(202).json({success:false,approval});
+    return;
+  }
+  try { res.json({success:true,commit:await commitWorkspaceToGitHub(project.id,message)}); }
+  catch(error){ res.status(400).json({success:false,error:error instanceof Error?error.message:'تعذر إنشاء Commit على GitHub.'}); }
 });
 
 app.get('/api/projects/:id/executions', async (req, res) => {
