@@ -12,7 +12,7 @@ const plan = {
   ],
 };
 
-const planned = await createPlan('أنشئ مهمة اختبار ثم تحقق منها');
+const planned = await createPlan('أنشئ مهمة داخل مساحة العمل');
 assert.equal(planned.steps.some((step) => step.action?.type === 'write_file'), true);
 assert.equal(planned.steps.some((step) => step.action?.type === 'test'), true);
 
