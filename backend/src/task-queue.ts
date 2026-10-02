@@ -7,7 +7,7 @@ const cancelled = new Set<string>();
 
 export async function enqueueAgentTask(userId:string, projectId:string|null, message:string){
   const task=await createTask(userId,projectId,message);
-  void runTask(task.id,userId);
+  publish({type:'task.queued',projectId,taskId:task.id,data:{message}});
   return task;
 }
 
