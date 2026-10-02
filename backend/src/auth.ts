@@ -30,7 +30,9 @@ export async function register(email: string, password: string) {
   await grantPermission(id, null, 'READ_PROJECT');
   await grantPermission(id, null, 'WRITE_PROJECT');
   await grantPermission(id, null, 'RUN_COMMAND');
-  return { id, email: email.toLowerCase() };
+  const token = randomBytes(32).toString('base64url');
+  db.prepare('INSERT INTO sessions(id,user_id,token_hash,expires_at,created_at) VALUES(?,?,?,?,?)').run(randomUUID(), id, hashToken(token), new Date(Date.now() + 1000 * 60 * 60 * 24 * 30).toISOString(), new Date().toISOString());
+  return { id, email: email.toLowerCase(), token };
 }
 
 export function login(email: string, password: string) {
