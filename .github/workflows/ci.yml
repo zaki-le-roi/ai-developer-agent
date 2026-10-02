@@ -7,8 +7,18 @@ name: BMZ AI CI
 on:
   push:
     branches: [main]
+    paths:
+      - 'backend/**'
+      - 'mobile/**'
+      - 'shared/**'
+      - '.github/workflows/**'
   pull_request:
     branches: [main]
+    paths:
+      - 'backend/**'
+      - 'mobile/**'
+      - 'shared/**'
+      - '.github/workflows/**'
 
 jobs:
   backend:
