@@ -30,6 +30,6 @@ BMZ AI هي بيئة تطوير تعتمد على GitHub كمصدر للكود �
 
 Backend على المنفذ 4000.
 
-يتطلب التكامل مع GitHub عند الحاجة إلى Commit فعلي متغير بيئة `GITHUB_TOKEN` بصلاحيات مناسبة. كما يحتاج مكوّن الاستدلال إلى `OPENAI_API_KEY` و`OPENAI_MODEL` إذا أريد استخدام نموذج الاستدلال الخارجي.
+يتطلب التكامل مع GitHub عند الحاجة إلى Commit فعلي متغير بيئة `GITHUB_TOKEN` بصلاحيات مناسبة. لا يفرض BMZ AI مزود ذكاء اصطناعي سحابيًا؛ يمكن تشغيل Model Runtime محلي عبر Ollama باستخدام `OLLAMA_BASE_URL` و`OLLAMA_MODEL`، أو أي endpoint متوافق عبر `MODEL_BASE_URL` و`MODEL_NAME` و`MODEL_API_KEY` اختياريًا.
 
 العمليات الحساسة، ومنها Commit إلى GitHub، تتطلب موافقة صريحة.
