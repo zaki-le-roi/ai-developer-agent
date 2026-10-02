@@ -12,7 +12,7 @@ import { commitWorkspaceToGitHub } from './github-write.js';
 import { latestAndroidBuild, downloadLatestAndroidArtifact, downloadLatestArtifactNamed, downloadLatestMobileArtifact } from './github-actions.js';
 import { runCommandInSandbox } from './sandbox-tools.js';
 import { listTasks, getTask } from './task-store.js';
-import { enqueueAgentTask, cancelTask, runTask } from './task-queue.js';
+import { enqueueAgentTask, cancelTask, runTask, pauseTask, resumeTask, retryTask } from './task-queue.js';
 import { listAllTasks } from './task-store.js';
 import { eventsSse } from './realtime.js';
 import { runWorkflow, type Workflow } from './workflow-engine.js';
@@ -250,6 +250,9 @@ app.post('/api/schedules/:id/disable',async(req,res)=>res.json({success:await di
 app.get('/api/events', (req, res) => { eventsSse(req, res); });
 
 app.get('/api/tasks', async (req, res) => { const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : undefined; res.json({ success:true, tasks: await listTasks(res.locals.user.id, projectId) }); });
+app.post('/api/tasks/:id/pause',async(req,res)=>{const task=await pauseTask(req.params.id,res.locals.user.id);if(!task){res.status(404).json({success:false,error:'task not found'});return;}res.json({success:true,task});});
+app.post('/api/tasks/:id/resume',async(req,res)=>{const task=await resumeTask(req.params.id,res.locals.user.id);if(!task){res.status(404).json({success:false,error:'task not found'});return;}res.json({success:true,task});});
+app.post('/api/tasks/:id/retry',async(req,res)=>{const task=await retryTask(req.params.id,res.locals.user.id);if(!task){res.status(404).json({success:false,error:'task not found'});return;}res.json({success:true,task});});
 app.get('/api/tasks/:id', async (req, res) => { const task = await getTask(req.params.id, res.locals.user.id); if(!task){res.status(404).json({success:false,error:'task not found'});return;} res.json({success:true,task}); });
 app.post('/api/tasks', async (req, res) => { const message=typeof req.body?.message==='string'?req.body.message.trim():''; const projectId=typeof req.body?.projectId==='string'?req.body.projectId:null; if(!message){res.status(400).json({success:false,error:'message is required'});return;} if(projectId && !await getProject(projectId,res.locals.user.id)){res.status(404).json({success:false,error:'project not found'});return;} const task=await enqueueAgentTask(res.locals.user.id,projectId,message); res.status(202).json({success:true,task}); });
 app.post('/api/tasks/:id/cancel', async (req, res) => { const task=await cancelTask(req.params.id,res.locals.user.id); if(!task){res.status(404).json({success:false,error:'task not found'});return;} res.json({success:true,task}); });
