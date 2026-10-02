@@ -15,7 +15,7 @@ import { listTasks, getTask } from './task-store.js';
 import { enqueueAgentTask, cancelTask } from './task-queue.js';
 import { eventsSse } from './realtime.js';
 import { runWorkflow, type Workflow } from './workflow-engine.js';
-import { register, login, authenticate } from './auth.js';
+import { register, login, authenticate, requireAuth } from './auth.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
@@ -56,8 +56,16 @@ app.get('/health', (_req, res) => {
   res.json({ success: true, service: 'BMZ AI Backend', status: 'ready', port: PORT });
 });
 
-app.get('/api/projects', async (_req, res) => {
-  res.json({ success: true, projects: await listProjects() });
+app.use('/api/projects', requireAuth);
+app.use('/api/tasks', requireAuth);
+app.use('/api/workflows', requireAuth);
+app.use('/api/agent', requireAuth);
+app.use('/api/events', requireAuth);
+app.use('/api/sessions', requireAuth);
+app.use('/api/approvals', requireAuth);
+
+app.get('/api/projects', async (req, res) => {
+  res.json({ success: true, projects: await listProjects(res.locals.user.id) });
 });
 
 app.post('/api/projects', async (req, res) => {
@@ -67,7 +75,7 @@ app.post('/api/projects', async (req, res) => {
     return;
   }
   const repositoryUrl = typeof req.body?.repositoryUrl === 'string' ? req.body.repositoryUrl.trim() : undefined;
-  res.status(201).json({ success: true, project: await createProject(name, repositoryUrl) });
+  res.status(201).json({ success: true, project: await createProject(name, repositoryUrl, res.locals.user.id) });
 });
 
 app.post('/api/projects/import-github', async (req, res) => {
