@@ -1,0 +1,18 @@
+services:
+  backend:
+    build: .
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      BMZ_DATA_ROOT: /data
+      BMZ_SANDBOX_ROOT: /sandbox/workspaces
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+    volumes:
+      - bmz-data:/data
+      - bmz-sandbox:/sandbox
+volumes:
+  bmz-data:
+  bmz-sandbox:
