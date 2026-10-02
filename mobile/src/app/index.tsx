@@ -10,7 +10,7 @@ type Approval={id:string,reason:string};
 type Tab='files'|'code'|'preview'|'agent';
 
 export default function HomeScreen(){
- const [projectId,setProjectId]=useState<string|null>(null),[sessionId,setSessionId]=useState<string|null>(null);
+ const [projectId,setProjectId]=useState<string|null>(null),[sessionId,setSessionId]=useState<string|null>(null),[apiBase,setApiBase]=useState(API_URL);
  const [repo,setRepo]=useState(''),[projectName,setProjectName]=useState('مشروع BMZ AI'),[message,setMessage]=useState(''),[sending,setSending]=useState(false);
  const [projects,setProjects]=useState<any[]>([]),[showNewProject,setShowNewProject]=useState(false);
  const [files,setFiles]=useState<string[]>([]),[selected,setSelected]=useState(''),[code,setCode]=useState('');
@@ -22,24 +22,24 @@ export default function HomeScreen(){
  const {width}=useWindowDimensions(); const wide=width>=800;
  useEffect(()=>{void loadProjects();},[]);
  useEffect(()=>{if(!projectId)return;void refreshBuild();const timer=setInterval(()=>void refreshBuild(),5000);return()=>clearInterval(timer);},[projectId]);
- const base=projectId?API_URL+'/api/projects/'+projectId:'';
- async function loadProjects(){try{const r=await fetch(API_URL+'/api/projects');const d=await r.json();if(r.ok)setProjects(d.projects||[]);}catch{}}
+ const base=projectId?apiBase+'/api/projects/'+projectId:'';
+ async function loadProjects(){try{const r=await fetch(apiBase+'/api/projects');const d=await r.json();if(r.ok)setProjects(d.projects||[]);}catch{}}
  async function selectProject(id:string){setProjectId(id);setSessionId(null);await refreshFiles(id);setTab('files');}
  async function ensureProject(){
   if(projectId)return projectId;
-  const endpoint=repo.trim()?API_URL+'/api/projects/import-github':API_URL+'/api/projects';
+  const endpoint=repo.trim()?apiBase+'/api/projects/import-github':apiBase+'/api/projects';
   const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'مشروع BMZ AI',...(repo.trim()?{repositoryUrl:repo.trim()}:{})})});
   const d=await r.json(); if(!r.ok||!d.project?.id)throw new Error(d.error||'تعذر إنشاء المشروع.');
   setProjectId(d.project.id); await refreshFiles(d.project.id); return d.project.id;
  }
- async function ensureSession(pid:string){if(sessionId)return sessionId;const r=await fetch(API_URL+'/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({projectId:pid})});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر إنشاء الجلسة.');setSessionId(d.session.id);return d.session.id;}
- async function refreshFiles(pid=projectId){if(!pid)return;const r=await fetch(API_URL+'/api/projects/'+pid+'/files');const d=await r.json();if(r.ok)setFiles(d.files||[]);}
- async function openFile(path:string){if(!projectId)return;const r=await fetch(API_URL+'/api/projects/'+projectId+'/file?path='+encodeURIComponent(path));const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر قراءة الملف.');setSelected(path);setCode(d.content||'');setTab('code');}
- async function deleteSelected(){if(!projectId||!selected)return;Alert.alert('حذف الملف','هل تريد حذف '+selected+'؟',[{text:'إلغاء',style:'cancel'},{text:'حذف',style:'destructive',onPress:async()=>{const r=await fetch(API_URL+'/api/projects/'+projectId+'/file',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:selected})});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر حذف الملف.');setSelected('');setCode('');await refreshFiles();setCommitStatus('تم حذف الملف من مساحة العمل.');}}]);}
- async function saveFile(){if(!projectId||!selected)return;const r=await fetch(API_URL+'/api/projects/'+projectId+'/file',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:selected,content:code})});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر حفظ الملف.');setCommitStatus('تم الحفظ داخل مساحة العمل.');setPreviewKey(x=>x+1);await refreshFiles();}
+ async function ensureSession(pid:string){if(sessionId)return sessionId;const r=await fetch(apiBase+'/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({projectId:pid})});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر إنشاء الجلسة.');setSessionId(d.session.id);return d.session.id;}
+ async function refreshFiles(pid=projectId){if(!pid)return;const r=await fetch(apiBase+'/api/projects/'+pid+'/files');const d=await r.json();if(r.ok)setFiles(d.files||[]);}
+ async function openFile(path:string){if(!projectId)return;const r=await fetch(apiBase+'/api/projects/'+projectId+'/file?path='+encodeURIComponent(path));const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر قراءة الملف.');setSelected(path);setCode(d.content||'');setTab('code');}
+ async function deleteSelected(){if(!projectId||!selected)return;Alert.alert('حذف الملف','هل تريد حذف '+selected+'؟',[{text:'إلغاء',style:'cancel'},{text:'حذف',style:'destructive',onPress:async()=>{const r=await fetch(apiBase+'/api/projects/'+projectId+'/file',{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:selected})});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر حذف الملف.');setSelected('');setCode('');await refreshFiles();setCommitStatus('تم حذف الملف من مساحة العمل.');}}]);}
+ async function saveFile(){if(!projectId||!selected)return;const r=await fetch(apiBase+'/api/projects/'+projectId+'/file',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:selected,content:code})});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر حفظ الملف.');setCommitStatus('تم الحفظ داخل مساحة العمل.');setPreviewKey(x=>x+1);await refreshFiles();}
  async function send(textOverride?:string,approvalToken?:string){
   const text=(textOverride??message).trim();if(!text||sending)return;setSending(true);setLogs(x=>[...x,{id:Date.now(),role:'user',text}]);setMessage('');
-  try{const pid=await ensureProject();const sid=await ensureSession(pid);const r=await fetch(API_URL+'/api/agent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,projectId:pid,sessionId:sid,...(approvalToken?{permissionLevel:'approval_required',approvalToken}: {})})});const d=await r.json();
+  try{const pid=await ensureProject();const sid=await ensureSession(pid);const r=await fetch(apiBase+'/api/agent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,projectId:pid,sessionId:sid,...(approvalToken?{permissionLevel:'approval_required',approvalToken}: {})})});const d=await r.json();
    if(d.approval){setApproval(d.approval);setLogs(x=>[...x,{id:Date.now()+1,role:'agent',text:'مطلوب موافقة: '+d.approval.reason}]);return;}
    if(!r.ok||!d.success)throw new Error(d.error||d.execution?.message||'فشل التنفيذ.');
    const summary=[d.execution?.message||'اكتمل التنفيذ.',...(d.execution?.observations||[]).map((o:any)=>(o.ok?'✓ ':'✗ ')+o.summary)].join('\n');
@@ -53,11 +53,11 @@ export default function HomeScreen(){
   if(d.approval){setApproval(d.approval);setCommitStatus('الموافقة مطلوبة لإرسال التغييرات إلى GitHub.');return;}
   setCommitStatus(r.ok?'تم إنشاء Commit على GitHub: '+d.commit.commitSha:'خطأ: '+(d.error||'فشل Commit'));
  }
- async function approve(){if(!approval)return;const id=approval.id;const r=await fetch(API_URL+'/api/approvals/'+id+'/approve',{method:'POST'});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر تسجيل الموافقة.');setApproval(null);if(commitStatus.includes('GitHub')){const cr=await fetch(base+'/github/commit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:'BMZ AI: تحديث المشروع',approvalToken:id})});const cd=await cr.json();setCommitStatus(cr.ok?'تم إرسال Commit إلى GitHub: '+cd.commit.commitSha:'خطأ: '+(cd.error||'فشل Commit'));}else{const last=logs.filter(x=>x.role==='user').at(-1)?.text;if(last)await send(last,id);}}
+ async function approve(){if(!approval)return;const id=approval.id;const r=await fetch(apiBase+'/api/approvals/'+id+'/approve',{method:'POST'});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر تسجيل الموافقة.');setApproval(null);if(commitStatus.includes('GitHub')){const cr=await fetch(base+'/github/commit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:'BMZ AI: تحديث المشروع',approvalToken:id})});const cd=await cr.json();setCommitStatus(cr.ok?'تم إرسال Commit إلى GitHub: '+cd.commit.commitSha:'خطأ: '+(cd.error||'فشل Commit'));}else{const last=logs.filter(x=>x.role==='user').at(-1)?.text;if(last)await send(last,id);}}
  const tabs:Tab[]=['files','code','preview','agent'];
  return <SafeAreaView style={s.safe}><StatusBar barStyle="light-content" backgroundColor="#080808"/><KeyboardAvoidingView style={s.fill} behavior={Platform.OS==='ios'?'padding':undefined}>
   <View style={s.header}><View><Text style={s.brand}>BMZ AI</Text><Text style={s.sub}>بيئة تطوير فعلية — GitHub + Android + Gradle</Text></View><View style={s.dot}/></View>
-  {!projectId&&<View style={s.repoBox}>
+  {!projectId&&<View style={s.repoBox}><TextInput value={apiBase} onChangeText={setApiBase} autoCapitalize="none" autoCorrect={false} placeholder="عنوان Backend مثل http://192.168.1.119:4000" placeholderTextColor="#777" style={s.input}/>
    {!showNewProject&&projects.length>0&&<View style={s.projectList}>{projects.map(p=><Pressable key={p.id} onPress={()=>void selectProject(p.id)} style={s.projectItem}><Text style={s.projectText}>{p.name}</Text><Text style={s.projectRepo}>{p.repositoryUrl||'مساحة عمل محلية'}</Text></Pressable>)}</View>}
    <Pressable onPress={()=>setShowNewProject(v=>!v)} style={s.newProject}><Text style={s.newProjectText}>{showNewProject||!projects.length?'إنشاء مشروع جديد':'+ مشروع جديد'}</Text></Pressable>
    {showNewProject||!projects.length?<><TextInput value={projectName} onChangeText={setProjectName} placeholder="اسم المشروع" placeholderTextColor="#777" style={s.input}/><TextInput value={repo} onChangeText={setRepo} placeholder="رابط GitHub اختياري" placeholderTextColor="#777" style={s.input}/></>:null}
