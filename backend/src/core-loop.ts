@@ -12,6 +12,7 @@ import type { ModelProvider } from './model-provider.js';
 import { createSandboxWorkspace, type SandboxWorkspace } from './sandbox-core.js';
 import { scaffoldAndroidApp } from './app-builder.js';
 import { listWorkspaceFiles, readWorkspaceFile } from './workspace-service.js';
+import { commitWorkspaceToGitHub } from './github-write.js';
 import {
   readFileInSandbox,
   runCommandInSandbox,
@@ -67,6 +68,11 @@ async function executeAction(
         summary: `تمت قراءة الملف ${action.path}.`,
         stdout: maskSecrets(result.content.slice(0, 20000)),
       };
+    }
+
+    if (action.type === 'github_commit') {
+      const result = await commitWorkspaceToGitHub(projectId ?? workspaceProjectId, action.message ?? 'BMZ AI: تحديث المشروع');
+      return { action: action.type, ok: true, summary: `تم إنشاء Commit على GitHub: ${result.commitSha}${result.buildTriggered ? ' وتم تشغيل بناء Android.' : ''}` };
     }
 
     if (action.type === 'preview_web') {
@@ -155,9 +161,10 @@ function isAction(value: unknown): value is AgentAction {
   if (!value || typeof value !== 'object') return false;
   const item = value as Record<string, unknown>;
   if (typeof item.type !== 'string') return false;
-  if (!['inspect_workspace', 'list_files', 'read_file', 'write_file', 'run_command', 'scaffold_app', 'build_android', 'preview_web', 'test'].includes(item.type)) return false;
+  if (!['inspect_workspace', 'list_files', 'read_file', 'write_file', 'run_command', 'scaffold_app', 'build_android', 'preview_web', 'github_commit', 'test'].includes(item.type)) return false;
   if (item.type === 'read_file' && typeof item.path !== 'string') return false;
   if (item.type === 'preview_web') return true;
+  if (item.type === 'github_commit') return item.message === undefined || typeof item.message === 'string';
   if (item.type === 'write_file' && (typeof item.path !== 'string' || typeof item.content !== 'string')) return false;
   if (item.type === 'scaffold_app') return item.platform === undefined || item.platform === 'android';
   if (item.type === 'build_android') return true;
