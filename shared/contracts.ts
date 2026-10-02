@@ -16,7 +16,7 @@ export type AgentAction =
 
 export type AgentPlanStep = { id: string; title: string; status: PlanStepStatus; action?: AgentAction };
 export type AgentPlan = { goal: string; steps: AgentPlanStep[] };
-export type AgentRequest = { message: string; projectId?: string; sessionId?: string; permissionLevel?: PermissionLevel; approvalToken?: string };
+export type AgentRequest = { userId?: string; message: string; projectId?: string; sessionId?: string; permissionLevel?: PermissionLevel; approvalToken?: string };
 export type CoreAction = AgentAction;
 export type CoreObservation = { action: CoreAction['type']; ok: boolean; summary: string; stdout?: string; stderr?: string };
 export type AgentExecution = { status: 'awaiting_execution' | 'running' | 'completed' | 'failed'; message: string; iterations: number; observations: CoreObservation[] };
