@@ -42,6 +42,7 @@ async function inspectWorkspace(workspace: SandboxWorkspace): Promise<CoreObserv
 
 async function executeAction(
   projectId: string | undefined,
+  userId: string | undefined,
   action: AgentAction,
   level: PermissionLevel,
 ): Promise<CoreObservation> {
@@ -49,6 +50,9 @@ async function executeAction(
   if (!decision.allowed) {
     return { action: action.type, ok: false, summary: decision.reason };
   }
+
+  const required = action.type === 'github_commit' ? 'GITHUB_PUSH' : ['write_file','scaffold_app'].includes(action.type) ? 'WRITE_PROJECT' : ['run_command','build_android','test'].includes(action.type) ? 'RUN_COMMAND' : 'READ_PROJECT';
+  if (userId && !(await hasPermission(userId, projectId ?? null, required as any))) return { action: action.type, ok: false, summary: 'الصلاحية المطلوبة غير ممنوحة.' };
 
   try {
     const workspace = await createSandboxWorkspace(projectId);
@@ -231,6 +235,7 @@ export async function runCoreLoop(
   projectId: string | undefined,
   plan: AgentPlan,
   level: PermissionLevel = 'sandbox',
+  userId?: string,
   provider?: ModelProvider,
 ): Promise<{
   status: 'completed' | 'failed';
@@ -253,7 +258,7 @@ export async function runCoreLoop(
   while (queue.length && iterations < MAX_ITERATIONS) {
     const action = queue.shift()!;
     iterations += 1;
-    const observation = await executeAction(workspaceProjectId, action, level);
+    const observation = await executeAction(workspaceProjectId, userId, action, level);
     observations.push(observation);
 
     if (observation.ok) {
