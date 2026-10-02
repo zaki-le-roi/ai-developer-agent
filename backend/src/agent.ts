@@ -22,8 +22,9 @@ export async function handleAgentRequest(request: AgentRequest): Promise<AgentRe
 
   const needsApproval = permissionLevel === 'approval_required' || permissionLevel === 'real_execution';
   if (needsApproval) {
-    if (!request.approvalToken || !(await consumeApproval(request.approvalToken))) {
+    if (!request.approvalToken || !(await consumeApproval(request.userId ?? '', request.approvalToken))) {
       const approval = await requestApproval(
+        request.userId ?? '',
         projectId,
         permissionLevel,
         'طلب التنفيذ يتضمن عمليات تتطلب موافقة صريحة قبل المتابعة.',
