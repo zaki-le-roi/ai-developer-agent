@@ -59,6 +59,13 @@ export async function writeFileInSandbox(
   return { workspaceId: workspace.id, path: relativePath };
 }
 
+export async function deleteFileInSandbox(projectId: string | undefined, relativePath: string) {
+  const workspace = await createSandboxWorkspace(projectId);
+  const target = safePath(workspace.directory, relativePath);
+  await fs.rm(target, { recursive: true, force: false });
+  return { workspaceId: workspace.id, path: relativePath };
+}
+
 export async function readFileInSandbox(projectId: string | undefined, relativePath: string) {
   const workspace = await createSandboxWorkspace(projectId);
   const target = safePath(workspace.directory, relativePath);
