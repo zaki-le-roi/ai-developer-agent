@@ -9,8 +9,8 @@ async function api<T>(url:string,init?:RequestInit):Promise<T>{if(!process.env.G
 async function collect(root:string,dir:string,out:{path:string;content:Buffer}[]){const es=await fs.readdir(dir,{withFileTypes:true});for(const e of es){if(['.git','node_modules','build','dist','.gradle','.bmz'].includes(e.name))continue;const t=path.join(dir,e.name);if(e.isDirectory())await collect(root,t,out);else{const b=await fs.readFile(t);if(b.length<=1_000_000)out.push({path:path.relative(root,t).split(path.sep).join('/'),content:b});}}}
 async function loadManifest(root:string):Promise<string[]>{try{const raw=await fs.readFile(path.join(root,'.bmz','import-manifest.json'),'utf8');const value=JSON.parse(raw) as {paths?:unknown};return Array.isArray(value.paths)?value.paths.filter((x):x is string=>typeof x==='string'):[];}catch{return [];}}
 function isLikelyTextPath(filePath:string){return !/\.(png|jpe?g|gif|webp|ico|bmp|pdf|zip|gz|7z|rar|exe|dll|so|dylib|mp3|mp4|mov|avi|woff2?|ttf|otf)$/i.test(filePath);}
-export async function commitWorkspaceToGitHub(projectId:string,message:string){
- const project=await getProject(projectId); if(!project?.repositoryUrl)throw new Error('المشروع غير مرتبط بمستودع GitHub.');
+export async function commitWorkspaceToGitHub(projectId:string,userId:string,message:string){
+ const project=await getProject(projectId,userId); if(!project?.repositoryUrl)throw new Error('المشروع غير مرتبط بمستودع GitHub.');
  const {owner,name}=repoParts(project.repositoryUrl); const repo=await api<Repo>(`https://api.github.com/repos/${owner}/${name}`); const branch=repo.default_branch||'main';
  const ref=await api<{object:{sha:string}}>(`https://api.github.com/repos/${owner}/${name}/git/ref/heads/${branch}`);
  const base=await api<{tree:{sha:string}}>(`https://api.github.com/repos/${owner}/${name}/git/commits/${ref.object.sha}`);
