@@ -8,44 +8,25 @@ export type ExecutionDecision =
 export function prepareExecution(
   plan: AgentPlan,
   permissions: PermissionContext,
-): { status: 'awaiting_execution'; message: string } {
+): { status: 'ready' | 'awaiting_execution'; message: string } {
   if (!canExecuteInSandbox(permissions)) {
-    return {
-      status: 'awaiting_execution',
-      message: 'الخطة جاهزة، لكن التنفيذ يحتاج إلى صلاحية Sandbox.',
-    };
+    return { status: 'awaiting_execution', message: 'الخطة جاهزة، لكن التنفيذ يحتاج إلى صلاحية Sandbox.' };
   }
-
-  return {
-    status: 'awaiting_execution',
-    message: `الخطة جاهزة للتنفيذ داخل Sandbox: ${plan.steps.length} خطوات.`,
-  };
+  return { status: 'ready', message: `الخطة جاهزة للتنفيذ داخل Sandbox: ${plan.steps.length} خطوات.` };
 }
 
-export function authorizeAction(
-  action: CoreAction,
-  level: PermissionLevel,
-): ExecutionDecision {
+export function authorizeAction(action: CoreAction, level: PermissionLevel): ExecutionDecision {
   if (level === 'read_only') {
     return action.type === 'inspect_workspace' || action.type === 'read_file'
       ? { allowed: true }
       : { allowed: false, reason: 'هذا الإجراء يحتاج إلى صلاحية تنفيذ.' };
   }
-
-  if (level === 'sandbox') {
-    return action.type === 'inspect_workspace' ||
-      action.type === 'read_file' ||
-      action.type === 'write_file' ||
-      action.type === 'run_command' ||
-      action.type === 'test'
+  if (level === 'sandbox' || level === 'approval_required') {
+    return action.type === 'inspect_workspace' || action.type === 'read_file' || action.type === 'write_file' || action.type === 'run_command' || action.type === 'test'
       ? { allowed: true }
       : { allowed: false, reason: 'الإجراء غير مدعوم في Sandbox.' };
   }
-
-  return {
-    allowed: false,
-    reason: 'هذا المستوى يحتاج إلى بوابة موافقة قبل التنفيذ الحقيقي.',
-  };
+  return { allowed: false, reason: 'مستوى real_execution غير مفعّل: لا يسمح BMZ AI حاليًا بتنفيذ عمليات خارج Sandbox.' };
 }
 
 export function classifyMessage(message: string): 'inspect' | 'build' | 'test' {
