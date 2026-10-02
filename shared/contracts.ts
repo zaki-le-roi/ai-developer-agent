@@ -2,10 +2,18 @@ export type PermissionLevel = 'read_only' | 'sandbox' | 'approval_required' | 'r
 
 export type PlanStepStatus = 'pending' | 'running' | 'completed' | 'failed';
 
+export type AgentAction =
+  | { type: 'inspect_workspace' }
+  | { type: 'read_file'; path: string }
+  | { type: 'write_file'; path: string; content: string }
+  | { type: 'run_command'; command: string; args?: string[] }
+  | { type: 'test' };
+
 export type AgentPlanStep = {
   id: string;
   title: string;
   status: PlanStepStatus;
+  action?: AgentAction;
 };
 
 export type AgentPlan = {
@@ -18,12 +26,7 @@ export type AgentRequest = {
   projectId?: string;
 };
 
-export type CoreAction =
-  | { type: 'inspect_workspace' }
-  | { type: 'read_file'; path: string }
-  | { type: 'write_file'; path: string; content: string }
-  | { type: 'run_command'; command: string; args?: string[] }
-  | { type: 'test' };
+export type CoreAction = AgentAction;
 
 export type CoreObservation = {
   action: CoreAction['type'];
