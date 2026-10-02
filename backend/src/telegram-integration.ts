@@ -1,0 +1,3 @@
+import { getSecret, putSecret } from './secret-store.js';
+export async function saveTelegramBot(userId:string,token:string){if(!/^\d+:[A-Za-z0-9_-]{20,}$/.test(token))throw new Error('Telegram Bot Token غير صالح.');putSecret(userId,'telegram_bot_token',token);}
+export async function telegramSend(userId:string,chatId:string,text:string){const token=getSecret(userId,'telegram_bot_token');if(!token)throw new Error('Telegram غير مرتبط.');const r=await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:chatId,text})});if(!r.ok)throw new Error('Telegram HTTP '+r.status);return r.json();}
