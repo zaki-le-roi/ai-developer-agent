@@ -8,7 +8,8 @@ import { createModelProvider } from './model-provider.js';
 
 export async function handleAgentRequest(request: AgentRequest): Promise<AgentResponse> {
   const projectId = request.projectId ?? null;
-  const plan = createPlan(request.message);
+  const provider = createModelProvider();
+  const plan = await createPlan(request.message, provider);
 
   await addExecutionLog(projectId, request.message, 'started');
   if (projectId) {
@@ -31,7 +32,7 @@ export async function handleAgentRequest(request: AgentRequest): Promise<AgentRe
   }
 
   for (const step of plan.steps) step.status = 'running';
-  const core = await runCoreLoop(projectId ?? undefined, plan, 'sandbox');
+  const core = await runCoreLoop(projectId ?? undefined, plan, 'sandbox', provider);
 
   plan.steps.forEach((step, index) => {
     step.status = index < core.iterations
