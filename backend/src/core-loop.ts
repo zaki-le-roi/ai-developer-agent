@@ -74,16 +74,17 @@ async function executeAction(
       };
     }
 
-    const result = await runCommandInSandbox(projectId, 'node', [
-      '-e',
-      'console.log("BMZ AI test: OK")',
-    ]);
+    const testPath = '.bmz-test.txt';
+    const testValue = 'BMZ AI test: OK';
+    const target = path.join(workspace.directory, testPath);
+    await fs.writeFile(target, testValue, 'utf8');
+    const value = await fs.readFile(target, 'utf8');
+    await fs.rm(target, { force: true });
     return {
       action: 'test',
-      ok: result.code === 0,
-      summary: result.code === 0 ? 'نجح الاختبار الداخلي.' : 'فشل الاختبار الداخلي.',
-      stdout: result.stdout,
-      stderr: result.stderr,
+      ok: value === testValue,
+      summary: value === testValue ? 'نجح الاختبار الداخلي لمساحة العمل.' : 'فشل الاختبار الداخلي.',
+      stdout: value,
     };
   } catch (error) {
     return {
