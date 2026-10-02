@@ -64,7 +64,7 @@ export async function createPlan(goal: string, provider?: ModelProvider): Promis
       'استخدم read_file قبل تعديل ملف موجود عندما تحتاج معرفة محتواه. استخدم write_file لإنشاء/تعديل الملفات. استخدم run_command فقط للأوامر المسموح بها. بعد التغييرات استخدم test، وعند طلب Android استخدم build_android أيضًا.',
       'الأنواع المسموحة فقط: inspect_workspace, list_files, read_file, write_file, run_command, scaffold_app, build_android, preview_web, github_commit, test.',
       'أرجع JSON فقط بالشكل {"steps":[{"id":"...","title":"...","action":{...}}]}. لا تضف نصًا خارج JSON.',
-      'قسّم العمل إلى خطوات صغيرة قابلة للتنفيذ، ولا تتجاوز 40 خطوة.'
+      'قسّم العمل إلى خطوات صغيرة قابلة للتنفيذ، ولا تتجاوز 40 خطوة.',
       `الطلب: ${goal}`,
     ].join('\\n'))) as Record<string, unknown>;
     if (!Array.isArray(raw.steps) || !raw.steps.length) return fallback;
