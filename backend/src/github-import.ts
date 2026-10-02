@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { createSandboxWorkspace } from './sandbox-core.js';
+import { githubToken } from './github-auth.js';
 
 type GitHubTreeItem = {
   path: string;
@@ -56,13 +57,13 @@ function safeRelativePath(filePath: string): string {
   return normalized;
 }
 
-async function githubJson<T>(url: string): Promise<T> {
+async function githubJson<T>(userId:string,url: string): Promise<T> {
   const headers: Record<string, string> = {
     Accept: 'application/vnd.github+json',
     'User-Agent': 'BMZ-AI',
     'X-GitHub-Api-Version': '2022-11-28',
   };
-  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  const token=githubToken(userId); if(token) headers.Authorization = `Bearer ${token}`;
 
   const response = await fetch(url, { headers });
   if (!response.ok) {
@@ -71,14 +72,14 @@ async function githubJson<T>(url: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function importGitHubRepository(projectId: string, repositoryUrl: string) {
+export async function importGitHubRepository(userId:string,projectId: string, repositoryUrl: string) {
   const { owner, repo } = parseRepositoryUrl(repositoryUrl);
   const apiBase = `https://api.github.com/repos/${owner}/${repo}`;
-  const repository = await githubJson<GitHubRepoResponse>(apiBase);
+  const repository = await githubJson<GitHubRepoResponse>(userId,apiBase);
   const branch = repository.default_branch?.trim();
   if (!branch) throw new Error('تعذر تحديد الفرع الافتراضي للمستودع.');
 
-  const tree = await githubJson<GitHubTreeResponse>(
+  const tree = await githubJson<GitHubTreeResponse>(userId,
     `${apiBase}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
   );
   if (!Array.isArray(tree.tree)) throw new Error('تعذر قراءة شجرة ملفات المستودع.');
@@ -98,7 +99,7 @@ export async function importGitHubRepository(projectId: string, repositoryUrl: s
   for (const file of files) {
     if (typeof file.size === 'number' && file.size > MAX_FILE_BYTES) continue;
 
-    const blob = await githubJson<{ content?: string; encoding?: string }>(
+    const blob = await githubJson<{ content?: string; encoding?: string }>(userId,
       `${apiBase}/git/blobs/${file.sha}`,
     );
     if (blob.encoding !== 'base64' || typeof blob.content !== 'string') continue;
