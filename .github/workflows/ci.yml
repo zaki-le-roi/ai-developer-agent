@@ -21,6 +21,7 @@ jobs:
           cache-dependency-path: backend/package.json
       - run: npm install
       - run: npm run build
+      - run: npm test
 
   mobile:
     runs-on: ubuntu-latest
