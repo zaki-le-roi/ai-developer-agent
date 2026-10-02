@@ -1,14 +1,15 @@
 # Workflows
 
-Workflows are directed graphs of executable nodes. A workflow is submitted to `POST /api/workflows/run` with a project ID.
+BMZ AI Workflows are executable directed graphs, not drawings.
 
-Implemented executable node types:
+Implemented nodes:
+- ManualTrigger / WebhookTrigger / ScheduleTrigger
+- RunCommand
+- ReadFile / WriteFile / DeleteFile
+- Condition / Loop / Delay
+- HttpRequest with HTTPS + allowlist/private-network protection
+- Log
 
-- `RunCommand` — executes an allowlisted Sandbox command.
-- `ReadFile` — reads a project file.
-- `WriteFile` — writes a project file.
-- `Delay` — bounded delay.
+Every node is validated, executed in the Sandbox where applicable, and publishes start/completion/failure events. Stored workflows are user/project scoped. Webhook triggers require an HMAC signature.
 
-Every node publishes start/completion/failure events. Cycles and blocked graphs are rejected.
-
-The engine is intentionally adapter-based so triggers, GitHub, HTTP, messaging, scheduling and AI nodes can be added without coupling them to the mobile UI.
+The registry is designed for additional GitHub, AI, messaging, database and notification adapters without coupling them to the mobile UI.
