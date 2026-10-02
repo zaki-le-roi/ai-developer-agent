@@ -14,7 +14,7 @@ function validateCommand(command: string, args: string[]): void {
   if (command === 'npm' && first === 'run' && !['build', 'test', 'lint', 'typecheck'].includes(args[1] ?? '')) {
     throw new Error('سكريبت npm غير مسموح داخل Sandbox.');
   }
-  if (command === 'gradle' && !['--version', '--no-daemon', 'assembleDebug', 'test'].includes(first) && !args.includes('assembleDebug')) {
+  if (command === 'gradle' && first !== '--version' && !args.includes('assembleDebug')) {
     throw new Error('يسمح لـ gradle داخل Sandbox فقط ببناء assembleDebug أو التحقق من الإصدار.');
   }
   if (command === 'npx' && first !== 'tsc') {
