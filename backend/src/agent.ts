@@ -55,7 +55,7 @@ export async function handleAgentRequest(request: AgentRequest): Promise<AgentRe
   }
 
   let assistantMessage: string | undefined;
-  if (process.env.OPENAI_API_KEY) {
+  if (provider.name !== 'unconfigured') {
     try {
       assistantMessage = await createModelProvider().generate(
         [
