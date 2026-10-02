@@ -1,35 +1,35 @@
 # BMZ AI
 
-BMZ AI هي بيئة تطوير تعتمد على GitHub كمصدر للكود والتخزين والبناء، وليست خدمة Expo EAS.
+BMZ AI is a real AI Developer Agent + Workspace + Workflow Automation platform.
 
-## ما تنفذه المنظومة
+## Implemented foundation
 
-- إنشاء مساحة مشروع حقيقية.
-- استيراد مستودع GitHub إلى مساحة العمل.
-- شجرة ملفات وقراءة وتحرير الملفات.
-- وكيل يضع خطة ثم ينفذ الإجراءات داخل Sandbox.
-- دورة اختبار وإصلاح عند فشل العملية.
-- إنشاء مشروع Android Native مبني بـ Gradle.
-- بناء APK عبر GitHub Actions وAndroid SDK.
-- حفظ APK كـGitHub Actions artifact.
-- إرسال التغييرات إلى GitHub بعد موافقة صريحة.
-- تشغيل بناء Android تلقائيًا بعد Commit المشروع.
-- معاينة HTML للمشاريع التي تحتوي على index.html.
-- سجل تنفيذ وذاكرة للمشروع.
-- لا يوجد اعتماد على حساب Expo أو Expo EAS أو EXPO_TOKEN.
+- Real authentication and user-scoped projects.
+- Real file workspace: read/write/delete/create directory/rename/search.
+- Real allowlisted Sandbox terminal with timeouts and shell disabled.
+- Agent planning + execution loop with local-model abstraction.
+- Ollama support without mandatory external AI provider.
+- Real task queue with Pending/Running/Paused/Waiting Approval/Failed/Completed/Cancelled and Pause/Resume/Retry/Cancel APIs.
+- Real Workflow engine with validation, executable nodes, Webhook HMAC and Scheduler.
+- GitHub OAuth and encrypted per-user credentials.
+- GitHub repository read, branch, issue, PR, Actions and approved write operations.
+- Real Preview process lifecycle and token-protected proxy.
+- Playwright Browser Automation behind explicit permission and domain allowlists.
+- Telegram Bot integration with encrypted token storage.
+- Real-time event bus/SSE plus mobile state polling.
+- Docker backend/worker/local Ollama development stack.
+- CI TypeScript/build/test checks and Android/mobile build pipeline.
 
-## المكونات
+## Local model
 
-- `mobile/`: واجهة BMZ AI على الهاتف، وتحتوي على ملفات/محرر/معاينة/سجل الوكيل.
-- `backend/`: المنسق والوكيل وSandbox وGitHub integration.
-- `shared/`: العقود المشتركة.
-- `templates/android/`: قالب Android Native يستخدم Android SDK وGradle.
-- `.github/workflows/`: CI وبناء Android.
+Set `OLLAMA_BASE_URL` and `OLLAMA_MODEL` to use a local Ollama runtime. A compatible model endpoint can be used through `MODEL_BASE_URL`, `MODEL_NAME`, and optional `MODEL_API_KEY`.
 
-## التشغيل
+No cloud AI provider is required by the architecture.
 
-Backend على المنفذ 4000.
+## Run
 
-يتطلب التكامل مع GitHub عند الحاجة إلى Commit فعلي متغير بيئة `GITHUB_TOKEN` بصلاحيات مناسبة. لا يفرض BMZ AI مزود ذكاء اصطناعي سحابيًا؛ يمكن تشغيل Model Runtime محلي عبر Ollama باستخدام `OLLAMA_BASE_URL` و`OLLAMA_MODEL`، أو أي endpoint متوافق عبر `MODEL_BASE_URL` و`MODEL_NAME` و`MODEL_API_KEY` اختياريًا.
+Backend: `cd backend && npm install && npm run build && npm start`.
 
-العمليات الحساسة، ومنها Commit إلى GitHub، تتطلب موافقة صريحة.
+Mobile: `cd mobile && npm install`, then use the Expo/Gradle workflow.
+
+For production, run project execution inside containers/VMs, use durable database storage, HTTPS, secret management, network egress policy, and resource quotas.
