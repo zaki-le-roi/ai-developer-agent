@@ -9,7 +9,7 @@ export type AgentAction =
   | { type: 'write_file'; path: string; content: string }
   | { type: 'run_command'; command: string; args?: string[] }
   | { type: 'scaffold_app'; platform?: 'android' }
-  | { type: 'build_android' }
+  | { type: 'build_android' }\n  | { type: 'github_commit'; message?: string }
   | { type: 'preview_web' }
   | { type: 'test' };
 
