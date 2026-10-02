@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
-import { grantPermission,hasPermission,revokePermission } from './permission-store.js';
 process.env.BMZ_DATA_ROOT=process.env.BMZ_DATA_ROOT??'/tmp/bmz-ai-test';
+const {grantPermission,hasPermission,revokePermission}=await import('./permission-store.js');
 const user='permission-test';
 const grant=await grantPermission(user,null,'RUN_COMMAND');
 assert.equal(await hasPermission(user,null,'RUN_COMMAND'),true);
