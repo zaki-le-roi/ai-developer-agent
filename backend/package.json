@@ -18,6 +18,7 @@
     "@types/express": "^5.0.5",
     "@types/node": "^24.5.2",
     "tsx": "^4.20.5",
-    "typescript": "^5.9.2"
+    "typescript": "^5.9.2",
+    "@types/adm-zip": "^0.5.7"
   }
 }
