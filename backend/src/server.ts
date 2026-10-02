@@ -21,6 +21,7 @@ import { githubRepo, branches, issues, pullRequests, actions, createIssue, comme
 import { startScheduler, listSchedules, createSchedule, disableSchedule } from './scheduler.js';
 import { createWebhook, listWebhooks, resolveWebhook } from './webhook-store.js';
 import { listWorkflows, getWorkflow, createWorkflow, updateWorkflow, deleteWorkflow } from './workflow-store.js';
+import { startPreview, previewInfo, stopPreview, proxyPreview } from './preview-service.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
@@ -151,6 +152,9 @@ app.delete('/api/projects/:id/file', async (req, res) => {
   catch(error){ res.status(400).json({success:false,error:error instanceof Error?error.message:'تعذر حذف الملف.'}); }
 });
 
+app.post('/api/projects/:id/preview/start', async (req,res)=>{const project=await getProject(req.params.id,res.locals.user.id);if(!project){res.status(404).json({success:false,error:'project not found'});return;}try{res.json({success:true,preview:await startPreview(project.id)});}catch(e){res.status(400).json({success:false,error:e instanceof Error?e.message:'تعذر تشغيل Preview.'});}});
+app.post('/api/projects/:id/preview/stop', async (req,res)=>{const project=await getProject(req.params.id,res.locals.user.id);if(!project){res.status(404).json({success:false,error:'project not found'});return;}res.json({success:stopPreview(project.id)});});
+app.get('/preview/:id/*', async (req,res)=>{const token=typeof req.query.token==='string'?req.query.token:'';const item=previewInfo(req.params.id,token);if(!item){res.status(404).send('Preview not found');return;}const prefix='/preview/'+req.params.id;const pathName=req.originalUrl.split('?')[0].slice(prefix.length)||'/';proxyPreview(item,req,res,pathName);});
 app.get('/api/projects/:id/preview', async (req, res) => {
   const project = await getProject(req.params.id, res.locals.user.id);
   if (!project) { res.status(404).type('text/plain').send('project not found'); return; }
