@@ -10,6 +10,7 @@ import { approveRequest, consumeApproval, requestApproval } from './approval-sto
 import { listWorkspaceFiles, readWorkspaceFile, writeWorkspaceFile, deleteWorkspaceFile } from './workspace-service.js';
 import { commitWorkspaceToGitHub } from './github-write.js';
 import { latestAndroidBuild, downloadLatestAndroidArtifact, downloadLatestArtifactNamed, downloadLatestMobileArtifact } from './github-actions.js';
+import { runCommandInSandbox } from './sandbox-tools.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
@@ -180,6 +181,20 @@ app.post('/api/projects/:id/github/commit', async (req, res) => {
   }
   try { res.json({success:true,commit:await commitWorkspaceToGitHub(project.id,message)}); }
   catch(error){ res.status(400).json({success:false,error:error instanceof Error?error.message:'تعذر إنشاء Commit على GitHub.'}); }
+});
+
+app.post('/api/projects/:id/terminal', async (req, res) => {
+  const project = await getProject(req.params.id);
+  const command = typeof req.body?.command === 'string' ? req.body.command.trim() : '';
+  const args = Array.isArray(req.body?.args) ? req.body.args.filter((item: unknown): item is string => typeof item === 'string') : [];
+  if (!project) { res.status(404).json({ success:false, error:'project not found' }); return; }
+  if (!command) { res.status(400).json({ success:false, error:'command is required' }); return; }
+  try {
+    const result = await runCommandInSandbox(project.id, command, args);
+    res.json({ success: result.code === 0, result });
+  } catch(error) {
+    res.status(400).json({ success:false,error:error instanceof Error?error.message:'تعذر تنفيذ الأمر.' });
+  }
 });
 
 app.get('/api/projects/:id/executions', async (req, res) => {
