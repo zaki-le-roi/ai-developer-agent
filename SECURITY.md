@@ -1,7 +1,18 @@
 # Security
 
-Current controls include path traversal protection, command allowlisting, shell-free process spawning, output bounds, timeouts, API rate limiting, secret masking, approval gates for GitHub commits, password hashing with scrypt, hashed session tokens, and SSE lifecycle cleanup.
+Implemented controls include:
+- scrypt password hashing and hashed bearer sessions.
+- Strict user/project ownership checks.
+- Server-side encrypted credentials using AES-256-GCM.
+- GitHub OAuth state signing and server-side tokens.
+- Shell-free command execution and command allowlisting.
+- Sandbox path traversal protection.
+- Output bounds and execution timeouts.
+- API rate limiting.
+- Approval gates for sensitive GitHub operations.
+- Webhook HMAC verification.
+- HTTPS/domain restrictions for HTTP and browser automation.
+- Browser session isolation.
+- Mobile credentials stored with Expo SecureStore.
 
-Known remaining production hardening: move sandbox processes into a container/VM boundary, add network egress policy, complete RBAC/permission persistence, encrypt integration credentials with an external secret store, add CSRF protections for cookie sessions if cookies are introduced, and complete SSRF/domain policy for browser/HTTP tools.
-
-The application must not claim host-level isolation until Docker/VM isolation is enabled.
+Important deployment boundary: the current Node process sandbox is not a VM/container security boundary. Docker/VM isolation is supported as the deployment architecture, but arbitrary untrusted workloads must not be exposed publicly until host-level isolation and resource/network quotas are enforced.
