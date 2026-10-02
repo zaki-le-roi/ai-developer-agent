@@ -201,7 +201,7 @@ app.post('/api/projects/:id/github/commit', async (req, res) => {
     res.status(202).json({success:false,approval});
     return;
   }
-  try { res.json({success:true,commit:await commitWorkspaceToGitHub(project.id,message)}); }
+  try { res.json({success:true,commit:await commitWorkspaceToGitHub(project.id,res.locals.user.id,message)}); }
   catch(error){ res.status(400).json({success:false,error:error instanceof Error?error.message:'تعذر إنشاء Commit على GitHub.'}); }
 });
 
