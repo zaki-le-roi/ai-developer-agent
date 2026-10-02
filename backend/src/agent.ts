@@ -34,22 +34,19 @@ export async function handleAgentRequest(request: AgentRequest): Promise<AgentRe
   const core = await runCoreLoop(projectId ?? undefined, plan, 'sandbox');
 
   plan.steps.forEach((step, index) => {
-    step.status = index < core.iterations ? 'completed' : 'pending';
+    step.status = index < core.iterations
+      ? (core.status === 'failed' && index === core.iterations - 1 ? 'failed' : 'completed')
+      : 'pending';
   });
+
   if (core.status === 'failed') {
     const failed = core.observations.find((item) => !item.ok);
     const message = failed?.summary ?? core.message;
-    for (const step of plan.steps) {
-      if (step.status === 'running') step.status = 'failed';
-    }
     if (projectId) {
       await remember(projectId, 'error', message);
     }
     await addExecutionLog(projectId, message, 'failed');
   } else {
-    for (const step of plan.steps) {
-      if (step.status === 'running') step.status = 'completed';
-    }
     if (projectId) {
       await remember(projectId, 'test', 'اكتملت دورة التنفيذ والاختبار داخل Sandbox.');
     }
