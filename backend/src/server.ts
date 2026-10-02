@@ -9,7 +9,7 @@ import { createSession, getSession, touchSession } from './session-store.js';
 import { approveRequest, consumeApproval, requestApproval } from './approval-store.js';
 import { listWorkspaceFiles, readWorkspaceFile, writeWorkspaceFile, deleteWorkspaceFile } from './workspace-service.js';
 import { commitWorkspaceToGitHub } from './github-write.js';
-import { latestAndroidBuild, downloadLatestAndroidArtifact } from './github-actions.js';
+import { latestAndroidBuild, downloadLatestAndroidArtifact, downloadLatestArtifactNamed } from './github-actions.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
@@ -143,6 +143,18 @@ app.get('/api/projects/:id/github/build', async (req, res) => {
   if (!project) { res.status(404).json({success:false,error:'project not found'}); return; }
   try { res.json({success:true, ...(await latestAndroidBuild(project.id))}); }
   catch(error){ res.status(400).json({success:false,error:error instanceof Error?error.message:'تعذر قراءة حالة بناء Android.'}); }
+});
+
+app.get('/api/mobile/apk', async (_req, res) => {
+  try {
+    const projects = await listProjects();
+    const project = projects.find((item) => item.repositoryUrl);
+    if (!project) { res.status(404).json({success:false,error:'لا يوجد مشروع مرتبط بمستودع GitHub.'}); return; }
+    const apk = await downloadLatestArtifactNamed(project.id, 'bmz-ai-mobile-debug-apk');
+    res.status(200).type('application/vnd.android.package-archive').set('Content-Disposition','attachment; filename="bmz-ai.apk"').send(apk);
+  } catch(error) {
+    res.status(404).json({success:false,error:error instanceof Error?error.message:'لا يوجد APK لتطبيق BMZ AI بعد.'});
+  }
 });
 
 app.get('/api/projects/:id/github/build/apk', async (req, res) => {
