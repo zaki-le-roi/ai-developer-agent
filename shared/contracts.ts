@@ -7,9 +7,7 @@ export type AgentAction =
   | { type: 'read_file'; path: string }
   | { type: 'write_file'; path: string; content: string }
   | { type: 'run_command'; command: string; args?: string[] }
-  | { type: 'test' }
-  | { type: 'github_repo_info' }
-  | { type: 'github_commit_file'; path: string; content: string; message: string; branch?: string };
+  | { type: 'test' };
 
 export type AgentPlanStep = {
   id: string;
