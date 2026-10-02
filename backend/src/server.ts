@@ -4,6 +4,7 @@ import { handleAgentRequest } from './agent.js';
 import { createProject, getProject, listProjects } from './project-store.js';
 import { recall } from './memory-store.js';
 import { listExecutionLogs } from './execution-store.js';
+import { importGitHubRepository } from './github-import.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
@@ -24,7 +25,34 @@ app.post('/api/projects', async (req, res) => {
     res.status(400).json({ success: false, error: 'name is required' });
     return;
   }
-  res.status(201).json({ success: true, project: await createProject(name) });
+  const repositoryUrl = typeof req.body?.repositoryUrl === 'string' ? req.body.repositoryUrl.trim() : undefined;
+  res.status(201).json({ success: true, project: await createProject(name, repositoryUrl) });
+});
+
+app.post('/api/projects/import-github', async (req, res) => {
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+  const repositoryUrl = typeof req.body?.repositoryUrl === 'string'
+    ? req.body.repositoryUrl.trim()
+    : '';
+
+  if (!name || !repositoryUrl) {
+    res.status(400).json({
+      success: false,
+      error: 'name و repositoryUrl مطلوبان.',
+    });
+    return;
+  }
+
+  try {
+    const project = await createProject(name, repositoryUrl);
+    const imported = await importGitHubRepository(project.id, repositoryUrl);
+    res.status(201).json({ success: true, project, imported });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'تعذر استيراد مستودع GitHub.',
+    });
+  }
 });
 
 app.get('/api/projects/:id', async (req, res) => {
