@@ -104,7 +104,7 @@ app.post('/api/projects/import-github', async (req, res) => {
 
   try {
     const project = await createProject(name, repositoryUrl, res.locals.user.id);
-    const imported = await importGitHubRepository(project.id, repositoryUrl);
+    const imported = await importGitHubRepository(res.locals.user.id, project.id, repositoryUrl);
     res.status(201).json({ success: true, project, imported });
   } catch (error) {
     res.status(400).json({
