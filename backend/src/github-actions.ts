@@ -15,7 +15,7 @@ export async function latestAndroidBuild(projectId:string,userId:string){
  return {found:true,run:{id:run.id,status:run.status,conclusion:run.conclusion,htmlUrl:run.html_url,headSha:run.head_sha,updatedAt:run.updated_at},artifact:apk?{id:apk.id,name:apk.name,size:apk.size_in_bytes,downloadUrl:apk.archive_download_url}:null};
 }
 export async function downloadLatestAndroidArtifact(projectId:string,userId:string){
- const project=await getProject(projectId);if(!project?.repositoryUrl)throw new Error('المشروع غير مرتبط بـ GitHub.');
+ const project=await getProject(projectId,userId);if(!project?.repositoryUrl)throw new Error('المشروع غير مرتبط بـ GitHub.');
  const {owner,name}=parts(project.repositoryUrl);
  const runs=await api<{workflow_runs:Array<{id:number;status:string;conclusion:string|null}>}>(`https://api.github.com/repos/${owner}/${name}/actions/runs?per_page=50`);
  const completed=runs.workflow_runs.find(x=>x.status==='completed'&&x.conclusion==='success');
@@ -31,7 +31,7 @@ export async function downloadLatestAndroidArtifact(projectId:string,userId:stri
 }
 
 export async function downloadLatestArtifactNamed(projectId:string,userId:string, artifactName:string){
- const project=await getProject(projectId);
+ const project=await getProject(projectId,userId);
  if(!project?.repositoryUrl)throw new Error('المشروع غير مرتبط بـ GitHub.');
  const {owner,name}=parts(project.repositoryUrl);
  const runs=await api<{workflow_runs:Array<{id:number;status:string;conclusion:string|null}>}>(`https://api.github.com/repos/${owner}/${name}/actions/runs?per_page=100`);
