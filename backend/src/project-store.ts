@@ -2,7 +2,12 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-export type Project = { id: string; name: string; createdAt: string };
+export type Project = {
+  id: string;
+  name: string;
+  createdAt: string;
+  repositoryUrl?: string;
+};
 
 const dataDir = path.resolve(process.env.BMZ_DATA_ROOT ?? path.join(process.cwd(), 'backend', 'data'));
 const dataFile = path.join(dataDir, 'projects.json');
@@ -24,12 +29,13 @@ async function save(projects: Project[]): Promise<void> {
   await fs.rename(temp, dataFile);
 }
 
-export async function createProject(name: string): Promise<Project> {
+export async function createProject(name: string, repositoryUrl?: string): Promise<Project> {
   const projects = await load();
   const project = {
     id: randomUUID(),
     name: name.trim().slice(0, 120) || 'مشروع جديد',
     createdAt: new Date().toISOString(),
+    ...(repositoryUrl ? { repositoryUrl } : {}),
   };
   projects.push(project);
   await save(projects);
