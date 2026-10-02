@@ -67,8 +67,8 @@ export default function HomeScreen() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [pendingApproval, setPendingApproval] = useState<AgentResponse['approval']>(undefined);
 
-  async function sendMessage() {
-    const cleanMessage = message.trim();
+  async function sendMessage(overrideApprovalToken?: string, overrideMessage?: string) {
+    const cleanMessage = (overrideMessage ?? message).trim();
     if (!cleanMessage || sending) return;
 
     setMessages((current) => [
@@ -116,7 +116,12 @@ export default function HomeScreen() {
       const response = await fetch(`${API_URL}/api/agent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: cleanMessage, projectId: activeProjectId, sessionId: activeSessionId }),
+        body: JSON.stringify({
+          message: cleanMessage,
+          projectId: activeProjectId,
+          sessionId: activeSessionId,
+          ...(overrideApprovalToken ? { permissionLevel: 'approval_required', approvalToken: overrideApprovalToken } : {}),
+        }),
       });
 
       const data = (await response.json()) as AgentResponse;
@@ -257,7 +262,7 @@ export default function HomeScreen() {
                   if (!approved.ok || !result.success) throw new Error('تعذر تسجيل الموافقة.');
                   const lastUserMessage = messages.filter((item) => item.role === 'user').at(-1)?.text ?? '';
                   setPendingApproval(undefined);
-                  setMessage(lastUserMessage);
+                  await sendMessage(pendingApproval.id, lastUserMessage);
                 } catch (error) {
                   setMessages((current) => [...current, { id: Date.now(), role: 'agent', text: error instanceof Error ? error.message : 'تعذر تسجيل الموافقة.' }]);
                 }
