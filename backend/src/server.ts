@@ -272,7 +272,7 @@ app.post('/api/agent', async (req, res) => {
     return;
   }
   try {
-    const request: AgentRequest = { ...body, message };
+    const request: AgentRequest = { ...body, userId: res.locals.user.id, message };
     const sessionId = typeof request.sessionId === 'string' ? request.sessionId : undefined;
     if (sessionId) {
       const session = await getSession(sessionId);
