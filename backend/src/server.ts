@@ -9,7 +9,7 @@ import { createSession, getSession, touchSession } from './session-store.js';
 import { approveRequest, consumeApproval, requestApproval } from './approval-store.js';
 import { listWorkspaceFiles, readWorkspaceFile, writeWorkspaceFile, deleteWorkspaceFile } from './workspace-service.js';
 import { commitWorkspaceToGitHub } from './github-write.js';
-import { latestAndroidBuild, downloadLatestAndroidArtifact, downloadLatestArtifactNamed } from './github-actions.js';
+import { latestAndroidBuild, downloadLatestAndroidArtifact, downloadLatestArtifactNamed, downloadLatestMobileArtifact } from './github-actions.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
@@ -161,8 +161,8 @@ app.get('/api/projects/:id/github/build/apk', async (req, res) => {
   const project = await getProject(req.params.id);
   if (!project) { res.status(404).json({success:false,error:'project not found'}); return; }
   try {
-    const artifact = await downloadLatestAndroidArtifact(project.id);
-    res.status(200).type('application/vnd.android.package-archive').set('Content-Disposition','attachment; filename="bmz-ai-debug.apk"').send(artifact);
+    const artifact = await downloadLatestMobileArtifact(project.id);
+    res.status(200).type('application/vnd.android.package-archive').set('Content-Disposition','attachment; filename="bmz-ai.apk"').send(artifact);
   } catch(error) {
     res.status(404).json({success:false,error:error instanceof Error?error.message:'لا يوجد APK جاهز للتنزيل.'});
   }
