@@ -7,7 +7,7 @@ const plan = {
   steps: [
     { id: 'understand', title: 'فهم المهمة والمتطلبات', status: 'pending' as const },
     { id: 'plan', title: 'إعداد خطة تنفيذ قابلة للتحقق', status: 'pending' as const },
-    { id: 'execute', title: 'تنفيذ العمليات المسموح بها داخل بيئة آمنة', status: 'pending' as const },
+    { id: 'execute', title: 'تنفيذ العمليات المسموح بها داخل بيئة آمنة', status: 'pending' as const, action: { type: 'write_file' as const, path: '.bmz-test-task.txt', content: 'ok' } },
     { id: 'test', title: 'اختبار النتيجة ومعالجة الأخطاء', status: 'pending' as const },
   ],
 };
