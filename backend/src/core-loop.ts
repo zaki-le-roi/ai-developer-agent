@@ -71,7 +71,8 @@ async function executeAction(
     }
 
     if (action.type === 'github_commit') {
-      const result = await commitWorkspaceToGitHub(projectId ?? workspaceProjectId, action.message ?? 'BMZ AI: تحديث المشروع');
+      if (!projectId) throw new Error('لا يمكن مزامنة مساحة عمل غير مرتبطة بمشروع GitHub.');
+      const result = await commitWorkspaceToGitHub(projectId, action.message ?? 'BMZ AI: تحديث المشروع');
       return { action: action.type, ok: true, summary: `تم إنشاء Commit على GitHub: ${result.commitSha}${result.buildTriggered ? ' وتم تشغيل بناء Android.' : ''}` };
     }
 
