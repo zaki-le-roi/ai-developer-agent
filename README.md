@@ -1,32 +1,35 @@
 # BMZ AI
 
-BMZ AI is a real mobile developer-agent platform.
+BMZ AI هي بيئة تطوير تعتمد على GitHub كمصدر للكود والتخزين والبناء، وليست خدمة Expo EAS.
 
-**B = Business, M = Market, Z = Zaki, AI = Artificial Intelligence.**
+## ما تنفذه المنظومة
 
-## Repository structure
+- إنشاء مساحة مشروع حقيقية.
+- استيراد مستودع GitHub إلى مساحة العمل.
+- شجرة ملفات وقراءة وتحرير الملفات.
+- وكيل يضع خطة ثم ينفذ الإجراءات داخل Sandbox.
+- دورة اختبار وإصلاح عند فشل العملية.
+- إنشاء مشروع Android Native مبني بـ Gradle.
+- بناء APK عبر GitHub Actions وAndroid SDK.
+- حفظ APK كـGitHub Actions artifact.
+- إرسال التغييرات إلى GitHub بعد موافقة صريحة.
+- تشغيل بناء Android تلقائيًا بعد Commit المشروع.
+- معاينة HTML للمشاريع التي تحتوي على index.html.
+- سجل تنفيذ وذاكرة للمشروع.
+- لا يوجد اعتماد على حساب Expo أو Expo EAS أو EXPO_TOKEN.
 
-- `mobile/` — Expo/React Native phone application and control surface.
-- `backend/` — independent Node.js/TypeScript API on port **4000**.
-- `sandbox/` — controlled workspace and command-execution layer; it is not a full OS/container isolation boundary.
-- `shared/` — shared contracts.
-- `web/` — legacy/reference code; it is not used as the BMZ AI backend.
+## المكونات
 
-## Current foundation
+- `mobile/`: واجهة BMZ AI على الهاتف، وتحتوي على ملفات/محرر/معاينة/سجل الوكيل.
+- `backend/`: المنسق والوكيل وSandbox وGitHub integration.
+- `shared/`: العقود المشتركة.
+- `templates/android/`: قالب Android Native يستخدم Android SDK وGradle.
+- `.github/workflows/`: CI وبناء Android.
 
-- Real phone UI with Expo SDK 55.
-- Independent Express + TypeScript backend.
-- `GET /health` health check.
-- `POST /api/agent` agent entry point.
-- Planner, Orchestrator and Permissions foundations.
-- Default backend port: **4000**.
+## التشغيل
 
-## Target execution flow
+Backend على المنفذ 4000.
 
-```
-Phone → BMZ AI Core → Planner → Orchestrator → Permissions → Workspace/Sandbox → Tests → Repair Loop → Result → Phone
-```
+يتطلب التكامل مع GitHub عند الحاجة إلى Commit فعلي متغير بيئة `GITHUB_TOKEN` بصلاحيات مناسبة. كما يحتاج مكوّن الاستدلال إلى `OPENAI_API_KEY` و`OPENAI_MODEL` إذا أريد استخدام نموذج الاستدلال الخارجي.
 
-Sensitive operations require explicit permission. Secrets belong on the backend, never in the mobile application.
-
-See [ARCHITECTURE.md](./ARCHITECTURE.md).
+العمليات الحساسة، ومنها Commit إلى GitHub، تتطلب موافقة صريحة.
