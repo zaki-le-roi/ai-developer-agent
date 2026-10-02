@@ -1,0 +1,9 @@
+import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+
+const sessions=new Map<string,{browser:Browser;context:BrowserContext;page:Page;allowed:string[];createdAt:string}>();
+function allowedUrl(raw:string,allowed:string[]){const u=new URL(raw);if(u.protocol!=='https:')throw new Error('Browser يسمح فقط بـ HTTPS.');if(!allowed.length)throw new Error('لم يتم تحديد نطاقات Browser المسموحة.');if(!allowed.some(x=>u.hostname===x||u.hostname.endsWith('.'+x)))throw new Error('النطاق غير مسموح به.');return u;}
+export async function browserOpen(sessionId:string,url:string,allowed:string[]){const target=allowedUrl(url,allowed);let s=sessions.get(sessionId);if(!s){const browser=await chromium.launch({headless:true});const context=await browser.newContext();const page=await context.newPage();s={browser,context,page,allowed,createdAt:new Date().toISOString()};sessions.set(sessionId,s);}await s.page.goto(target.toString(),{waitUntil:'domcontentloaded',timeout:30000});return {sessionId,url:s.page.url(),title:await s.page.title()};}
+export async function browserRead(sessionId:string){const s=sessions.get(sessionId);if(!s)throw new Error('جلسة Browser غير موجودة.');return {url:s.page.url(),title:await s.page.title(),text:(await s.page.locator('body').innerText()).slice(0,100000)};}
+export async function browserClick(sessionId:string,selector:string){const s=sessions.get(sessionId);if(!s)throw new Error('جلسة Browser غير موجودة.');await s.page.locator(selector).first().click({timeout:15000});return {url:s.page.url()};}
+export async function browserFill(sessionId:string,selector:string,value:string){const s=sessions.get(sessionId);if(!s)throw new Error('جلسة Browser غير موجودة.');await s.page.locator(selector).first().fill(value,{timeout:15000});return {ok:true};}
+export async function browserClose(sessionId:string){const s=sessions.get(sessionId);if(!s)return false;await s.browser.close();sessions.delete(sessionId);return true;}
