@@ -1,4 +1,5 @@
 import { promises as fs } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import type {
   AgentAction,
   AgentPlan,
@@ -152,6 +153,7 @@ export async function runCoreLoop(
   observations: CoreObservation[];
 }> {
   const observations: CoreObservation[] = [];
+  const workspaceProjectId = projectId ?? `run-${randomUUID()}`;
   const queue: AgentAction[] = plan.steps
     .map((step) => step.action)
     .filter((action): action is AgentAction => Boolean(action));
@@ -163,7 +165,7 @@ export async function runCoreLoop(
   while (queue.length && iterations < MAX_ITERATIONS) {
     const action = queue.shift()!;
     iterations += 1;
-    const observation = await executeAction(projectId, action, level);
+    const observation = await executeAction(workspaceProjectId, action, level);
     observations.push(observation);
 
     if (observation.ok) continue;
