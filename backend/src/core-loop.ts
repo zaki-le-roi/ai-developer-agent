@@ -55,7 +55,7 @@ async function executeAction(
     if (action.type === 'inspect_workspace') return inspectWorkspace(workspace);
 
     if (action.type === 'list_files') {
-      const result = await listWorkspaceFiles(projectId ?? workspaceProjectId);
+      const result = await listWorkspaceFiles(projectId ?? 'ephemeral');
       return { action: action.type, ok: true, summary: `تم العثور على ${result.files.length} ملفًا.`, stdout: result.files.join('\\n') };
     }
 
@@ -70,7 +70,7 @@ async function executeAction(
     }
 
     if (action.type === 'preview_web') {
-      const result = await readWorkspaceFile(projectId ?? workspaceProjectId, 'index.html');
+      const result = await readWorkspaceFile(projectId ?? 'ephemeral', 'index.html');
       return { action: action.type, ok: true, summary: 'تم تجهيز index.html للمعاينة.', stdout: result.content.slice(0, 100000) };
     }
 
