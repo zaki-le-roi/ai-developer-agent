@@ -63,6 +63,7 @@ export default function HomeScreen(){
    {tab==='preview'&&<View style={s.preview}><WebView key={previewKey} source={{uri:base+'/preview'}} style={s.web} originWhitelist={['*']} renderError={()=> <Text style={s.empty}>لا توجد معاينة HTML في المشروع الحالي.</Text>}/></View>}
    {tab==='agent'&&<ScrollView style={s.panel} contentContainerStyle={s.logs}>{logs.map(m=><View key={m.id} style={[s.log,m.role==='user'&&s.user]}><Text style={s.logRole}>{m.role==='user'?'أنت':'BMZ AI'}</Text><Text style={s.logText}>{m.text}</Text></View>)}</ScrollView>}
    </>
+   }
   </View>
   <View style={s.actions}><Pressable onPress={commit} disabled={!projectId||sending} style={s.commit}><Text style={s.commitText}>حفظ إلى GitHub</Text></Pressable>{commitStatus?<Text style={s.status}>{commitStatus}</Text>:null}</View>
   <View style={s.composer}><TextInput value={message} onChangeText={setMessage} placeholder="اكتب: أنشئ تطبيقًا، أصلح الخطأ، افحص المشروع..." placeholderTextColor="#777" style={s.message} multiline/><Pressable onPress={()=>void send()} disabled={!message.trim()||sending} style={s.send}><Text style={s.sendText}>{sending?'…':'↑'}</Text></Pressable></View>
