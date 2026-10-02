@@ -20,8 +20,8 @@ const MAX_ITERATIONS = 8;
 
 function maskSecrets(value: string): string {
   return value
-    .replace(/(OPENAI_API_KEY|GITHUB_TOKEN|BMZ_API_KEY|API_KEY|SECRET|PASSWORD)\\s*[=:]\\s*[^\\s\\n]+/gi, '$1=[MASKED]')
-    .replace(/gh[pousr]_[A-Za-z0-9_\\-]{20,}/g, '[MASKED_GITHUB_TOKEN]')
+    .replace(/(OPENAI_API_KEY|GITHUB_TOKEN|BMZ_API_KEY|API_KEY|SECRET|PASSWORD)\s*[=:]\s*[^\s\n]+/gi, '$1=[MASKED]')
+    .replace(/gh[pousr]_[A-Za-z0-9_\-]{20,}/g, '[MASKED_GITHUB_TOKEN]')
     .replace(/sk-[A-Za-z0-9_-]{20,}/g, '[MASKED_API_KEY]');
 }
 
