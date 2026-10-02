@@ -24,17 +24,14 @@ async function migrateLegacy(){
     const raw=JSON.parse(await fs.readFile(file,'utf8')) as unknown;
     if(!Array.isArray(raw))return;
     const insert=db.prepare('INSERT OR IGNORE INTO workflows(id,user_id,project_id,name,definition_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?)');
-    const tx=db.transaction((items:unknown[])=>{
-      for(const item of items){
+    for(const item of raw){
         if(!item||typeof item!=='object')continue;
         const w=item as Record<string,unknown>;
         if(typeof w.id!=='string'||typeof w.userId!=='string'||typeof w.projectId!=='string'||typeof w.name!=='string'||typeof w.createdAt!=='string')continue;
         const workflow=w.workflow&&typeof w.workflow==='object'?w.workflow:null;
         if(!workflow)continue;
         insert.run(w.id,w.userId,w.projectId,w.name,JSON.stringify(workflow),w.createdAt,typeof w.updatedAt==='string'?w.updatedAt:w.createdAt);
-      }
-    });
-    tx(raw);
+    }
   }catch{}
 }
 
