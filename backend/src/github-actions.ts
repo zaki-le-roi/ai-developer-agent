@@ -1,3 +1,4 @@
+import AdmZip from 'adm-zip';
 import { getProject } from './project-store.js';
 
 function parts(url:string){const u=new URL(url);if(u.protocol!=='https:'||u.hostname!=='github.com')throw new Error('رابط GitHub غير صالح.');const p=u.pathname.split('/').filter(Boolean);if(p.length<2)throw new Error('رابط GitHub غير صالح.');return {owner:p[0],name:p[1].replace(/\.git$/i,'')};}
@@ -22,5 +23,9 @@ export async function downloadLatestAndroidArtifact(projectId:string){
  const artifacts=await api<{artifacts:Array<{name:string;expired:boolean;archive_download_url:string}>}>(`https://api.github.com/repos/${owner}/${name}/actions/runs/${completed.id}/artifacts?per_page=50`);
  const apk=artifacts.artifacts.find(x=>x.name==='bmz-ai-debug-apk'&&!x.expired);
  if(!apk)throw new Error('لا يوجد APK محفوظ في هذا البناء.');
- return raw(apk.archive_download_url);
+ const archive=raw(await Promise.resolve(apk.archive_download_url));
+ const zip=new AdmZip(await archive);
+ const entry=zip.getEntries().find((item)=>item.entryName.toLowerCase().endsWith('.apk')&&!item.isDirectory);
+ if(!entry)throw new Error('لم تحتوي حزمة GitHub على ملف APK.');
+ return entry.getData();
 }
