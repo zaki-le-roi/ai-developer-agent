@@ -5,6 +5,8 @@ import { createProject, getProject, listProjects } from './project-store.js';
 import { recall } from './memory-store.js';
 import { listExecutionLogs } from './execution-store.js';
 import { importGitHubRepository } from './github-import.js';
+import { createSession, getSession, touchSession } from './session-store.js';
+import { approveRequest } from './approval-store.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
@@ -108,7 +110,31 @@ app.get('/api/projects/:id/memory', async (req, res) => {
   res.json({ success: true, entries: await recall(project.id) });
 });
 
-app.post('/api/agent', async (req, res) => {
+app.post('/api/sessions', async (req, res) => {
+  const projectId = typeof req.body?.projectId === 'string' ? req.body.projectId : null;
+  const session = await createSession(projectId);
+  res.status(201).json({ success: true, session });
+});
+
+app.get('/api/sessions/:id', async (req, res) => {
+  const session = await getSession(req.params.id);
+  if (!session) {
+    res.status(404).json({ success: false, error: 'session not found' });
+    return;
+  }
+  res.json({ success: true, session });
+});
+
+app.post('/api/approvals/:id/approve', async (req, res) => {
+  const approval = await approveRequest(req.params.id);
+  if (!approval) {
+    res.status(404).json({ success: false, error: 'approval not found or expired' });
+    return;
+  }
+  res.json({ success: true, approval });
+});
+
+app.post('/api/agent', async (req, res) =>
   const body = req.body as Partial<AgentRequest>;
   const message = typeof body.message === 'string' ? body.message.trim() : '';
   if (!message) {
@@ -116,10 +142,16 @@ app.post('/api/agent', async (req, res) => {
     return;
   }
   try {
-    const result = await handleAgentRequest({
-      message,
-      projectId: typeof body.projectId === 'string' ? body.projectId : undefined,
-    });
+    const sessionId = typeof body.sessionId === 'string' ? body.sessionId : undefined;
+    if (sessionId) {
+      const session = await getSession(sessionId);
+      if (!session) {
+        res.status(404).json({ success: false, error: 'session not found' });
+        return;
+      }
+      await touchSession(sessionId);
+    }
+    const result = await handleAgentRequest(body);
     res.json(result);
   } catch (error) {
     res.status(500).json({
