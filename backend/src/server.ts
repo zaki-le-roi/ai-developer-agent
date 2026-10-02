@@ -98,7 +98,7 @@ app.post('/api/projects/import-github', async (req, res) => {
   }
 
   try {
-    const project = await createProject(name, repositoryUrl);
+    const project = await createProject(name, repositoryUrl, res.locals.user.id);
     const imported = await importGitHubRepository(project.id, repositoryUrl);
     res.status(201).json({ success: true, project, imported });
   } catch (error) {
@@ -238,10 +238,10 @@ app.post('/api/schedules',async(req,res)=>{try{const projectId=typeof req.body?.
 app.post('/api/schedules/:id/disable',async(req,res)=>res.json({success:await disableSchedule(res.locals.user.id,req.params.id)}));
 app.get('/api/events', (req, res) => { eventsSse(req, res); });
 
-app.get('/api/tasks', async (req, res) => { const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : undefined; res.json({ success:true, tasks: await listTasks(projectId) }); });
-app.get('/api/tasks/:id', async (req, res) => { const task = await getTask(req.params.id); if(!task){res.status(404).json({success:false,error:'task not found'});return;} res.json({success:true,task}); });
-app.post('/api/tasks', async (req, res) => { const message=typeof req.body?.message==='string'?req.body.message.trim():''; const projectId=typeof req.body?.projectId==='string'?req.body.projectId:null; if(!message){res.status(400).json({success:false,error:'message is required'});return;} if(projectId && !await getProject(projectId,res.locals.user.id)){res.status(404).json({success:false,error:'project not found'});return;} const task=await enqueueAgentTask(projectId,message); res.status(202).json({success:true,task}); });
-app.post('/api/tasks/:id/cancel', async (req, res) => { const task=await cancelTask(req.params.id); if(!task){res.status(404).json({success:false,error:'task not found'});return;} res.json({success:true,task}); });
+app.get('/api/tasks', async (req, res) => { const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : undefined; res.json({ success:true, tasks: await listTasks(res.locals.user.id, projectId) }); });
+app.get('/api/tasks/:id', async (req, res) => { const task = await getTask(req.params.id, res.locals.user.id); if(!task){res.status(404).json({success:false,error:'task not found'});return;} res.json({success:true,task}); });
+app.post('/api/tasks', async (req, res) => { const message=typeof req.body?.message==='string'?req.body.message.trim():''; const projectId=typeof req.body?.projectId==='string'?req.body.projectId:null; if(!message){res.status(400).json({success:false,error:'message is required'});return;} if(projectId && !await getProject(projectId,res.locals.user.id)){res.status(404).json({success:false,error:'project not found'});return;} const task=await enqueueAgentTask(res.locals.user.id,projectId,message); res.status(202).json({success:true,task}); });
+app.post('/api/tasks/:id/cancel', async (req, res) => { const task=await cancelTask(req.params.id,res.locals.user.id); if(!task){res.status(404).json({success:false,error:'task not found'});return;} res.json({success:true,task}); });
 app.post('/api/workflows/run', async (req,res) => { const workflow=req.body?.workflow as Workflow|undefined; const projectId=typeof req.body?.projectId==='string'?req.body.projectId:''; if(!workflow||!projectId){res.status(400).json({success:false,error:'workflow و projectId مطلوبان'});return;} const project=await getProject(projectId,res.locals.user.id);if(!project){res.status(404).json({success:false,error:'project not found'});return;} try{const result=await runWorkflow(workflow,projectId);res.json({success:true,result});}catch(error){res.status(400).json({success:false,error:error instanceof Error?error.message:'فشل تنفيذ Workflow'});} });
 
 app.get('/api/projects/:id/executions', async (req, res) => {
