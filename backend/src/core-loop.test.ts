@@ -1,5 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { runCoreLoop } from './core-loop.js';
+import { createPlan } from './planner.js';
 
 const plan = {
   goal: 'اختبار دورة BMZ AI',
@@ -10,6 +11,10 @@ const plan = {
     { id: 'test', title: 'اختبار النتيجة ومعالجة الأخطاء', status: 'pending' as const },
   ],
 };
+
+const planned = await createPlan('أنشئ مهمة اختبار ثم تحقق منها');
+assert.equal(planned.steps.some((step) => step.action?.type === 'write_file'), true);
+assert.equal(planned.steps.some((step) => step.action?.type === 'test'), true);
 
 const result = await runCoreLoop(undefined, plan, 'sandbox');
 
