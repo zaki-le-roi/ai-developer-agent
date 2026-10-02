@@ -62,6 +62,7 @@ export default function HomeScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [sending, setSending] = useState(false);
   const [projectId, setProjectId] = useState<string | null>(null);
+  const [repositoryUrl, setRepositoryUrl] = useState('');
 
   async function sendMessage() {
     const cleanMessage = message.trim();
@@ -77,10 +78,16 @@ export default function HomeScreen() {
     try {
       let activeProjectId = projectId;
       if (!activeProjectId) {
-        const projectResponse = await fetch(`${API_URL}/api/projects`, {
+        const endpoint = repositoryUrl.trim()
+          ? `${API_URL}/api/projects/import-github`
+          : `${API_URL}/api/projects`;
+        const projectResponse = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: 'مشروعي في BMZ AI' }),
+          body: JSON.stringify({
+            name: repositoryUrl.trim() ? 'مشروع GitHub في BMZ AI' : 'مشروعي في BMZ AI',
+            ...(repositoryUrl.trim() ? { repositoryUrl: repositoryUrl.trim() } : {}),
+          }),
         });
         const projectData = (await projectResponse.json()) as { project?: { id?: string } };
         if (!projectResponse.ok || !projectData.project?.id) {
@@ -177,6 +184,17 @@ export default function HomeScreen() {
                   </Pressable>
                 ))}
               </View>
+              <TextInput
+                value={repositoryUrl}
+                onChangeText={setRepositoryUrl}
+                placeholder="رابط GitHub اختياري (https://github.com/...)"
+                placeholderTextColor="#666666"
+                style={styles.repositoryInput}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="url"
+                textAlign="right"
+              />
             </View>
           ) : (
             <View style={styles.conversation}>
@@ -267,6 +285,10 @@ const styles = StyleSheet.create({
   },
   suggestionText: { color: '#D5D5D5', fontSize: 13, textAlign: 'right' },
   suggestionArrow: { color: '#777777', fontSize: 22, transform: [{ rotate: '180deg' }] },
+  repositoryInput: {
+    width: '100%', minHeight: 50, marginTop: 12, paddingHorizontal: 15, borderRadius: 14,
+    backgroundColor: '#101010', borderWidth: 1, borderColor: '#202020', color: '#FFFFFF', fontSize: 13,
+  },
   conversation: { gap: 18 },
   messageRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 9 },
   userMessageRow: { flexDirection: 'row-reverse' },
