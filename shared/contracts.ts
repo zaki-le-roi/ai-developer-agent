@@ -7,6 +7,8 @@ export type AgentAction =
   | { type: 'read_file'; path: string }
   | { type: 'write_file'; path: string; content: string }
   | { type: 'run_command'; command: string; args?: string[] }
+  | { type: 'scaffold_app'; platform?: 'android' }
+  | { type: 'build_android' }
   | { type: 'test' };
 
 export type AgentPlanStep = {
@@ -16,10 +18,7 @@ export type AgentPlanStep = {
   action?: AgentAction;
 };
 
-export type AgentPlan = {
-  goal: string;
-  steps: AgentPlanStep[];
-};
+export type AgentPlan = { goal: string; steps: AgentPlanStep[] };
 
 export type AgentRequest = {
   message: string;
