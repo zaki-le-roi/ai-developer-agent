@@ -25,7 +25,9 @@ function validateCommand(command: string, args: string[]): void {
   }
 }
 const MAX_OUTPUT = 100000;
-const MAX_TIMEOUT_MS = 30000;
+const DEFAULT_TIMEOUT_MS = 120000;
+const INSTALL_TIMEOUT_MS = 300000;
+const ANDROID_TIMEOUT_MS = 600000;
 
 function safePath(root: string, relativePath: string): string {
   if (!relativePath || path.isAbsolute(relativePath)) {
@@ -83,10 +85,14 @@ export async function runCommandInSandbox(
       cwd: workspace.directory,
       shell: false,
       windowsHide: true,
-      timeout: MAX_TIMEOUT_MS,
+      timeout: command === 'gradle' ? ANDROID_TIMEOUT_MS : (command === 'npm' && ['install','ci'].includes(args[0] ?? '') ? INSTALL_TIMEOUT_MS : DEFAULT_TIMEOUT_MS),
       env: {
         PATH: process.env.PATH ?? '',
         NODE_ENV: 'test',
+        ...(process.env.JAVA_HOME ? { JAVA_HOME: process.env.JAVA_HOME } : {}),
+        ...(process.env.ANDROID_HOME ? { ANDROID_HOME: process.env.ANDROID_HOME } : {}),
+        ...(process.env.ANDROID_SDK_ROOT ? { ANDROID_SDK_ROOT: process.env.ANDROID_SDK_ROOT } : {}),
+        ...(process.env.GRADLE_USER_HOME ? { GRADLE_USER_HOME: process.env.GRADLE_USER_HOME } : {}),
       },
     });
 
