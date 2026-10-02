@@ -142,7 +142,8 @@ app.post('/api/agent', async (req, res) => {
     return;
   }
   try {
-    const sessionId = typeof body.sessionId === 'string' ? body.sessionId : undefined;
+    const request: AgentRequest = { ...body, message };
+    const sessionId = typeof request.sessionId === 'string' ? request.sessionId : undefined;
     if (sessionId) {
       const session = await getSession(sessionId);
       if (!session) {
@@ -151,7 +152,7 @@ app.post('/api/agent', async (req, res) => {
       }
       await touchSession(sessionId);
     }
-    const result = await handleAgentRequest(body);
+    const result = await handleAgentRequest(request);
     res.json(result);
   } catch (error) {
     res.status(500).json({
