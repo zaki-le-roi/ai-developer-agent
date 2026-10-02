@@ -17,12 +17,12 @@ export function prepareExecution(
 
 export function authorizeAction(action: CoreAction, level: PermissionLevel): ExecutionDecision {
   if (level === 'read_only') {
-    return action.type === 'inspect_workspace' || action.type === 'read_file'
+    return action.type === 'inspect_workspace' || action.type === 'list_files' || action.type === 'read_file'
       ? { allowed: true }
       : { allowed: false, reason: 'هذا الإجراء يحتاج إلى صلاحية تنفيذ.' };
   }
   if (level === 'sandbox' || level === 'approval_required') {
-    return action.type === 'inspect_workspace' || action.type === 'read_file' || action.type === 'write_file' || action.type === 'run_command' || action.type === 'scaffold_app' || action.type === 'build_android' || action.type === 'test'
+    return action.type === 'inspect_workspace' || action.type === 'read_file' || action.type === 'write_file' || action.type === 'run_command' || action.type === 'scaffold_app' || action.type === 'build_android' || action.type === 'preview_web' || action.type === 'test'
       ? { allowed: true }
       : { allowed: false, reason: 'الإجراء غير مدعوم في Sandbox.' };
   }
