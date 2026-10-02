@@ -22,8 +22,12 @@ type Message = {
 
 type AgentResponse = {
   success?: boolean;
-  plan?: { steps?: { title: string }[] };
-  execution?: { message?: string };
+  plan?: { steps?: { title: string; status?: string }[] };
+  execution?: {
+    message?: string;
+    iterations?: number;
+    observations?: { action: string; ok: boolean; summary: string }[];
+  };
   error?: string;
   assistantMessage?: string;
 };
@@ -33,6 +37,25 @@ const suggestions = [
   'حلّل مشروعي واكتشف المشاكل',
   'أصلح الأخطاء في المشروع',
 ];
+
+function formatExecution(data: AgentResponse): string {
+  const lines: string[] = [];
+  if (data.execution?.message) lines.push(data.execution.message);
+  if (typeof data.execution?.iterations === 'number') {
+    lines.push(`عدد دورات التنفيذ: ${data.execution.iterations}`);
+  }
+  const observations = data.execution?.observations ?? [];
+  if (observations.length) {
+    lines.push(
+      '\nنتيجة العمليات:',
+      ...observations.map(
+        (item, index) => `${index + 1}. ${item.ok ? '✓' : '✗'} ${item.summary}`,
+      ),
+    );
+  }
+  if (data.assistantMessage) lines.push(`\n${data.assistantMessage}`);
+  return lines.join('\n');
+}
 
 export default function HomeScreen() {
   const [message, setMessage] = useState('');
@@ -60,12 +83,14 @@ export default function HomeScreen() {
       const data = (await response.json()) as AgentResponse;
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || 'تعذر تنفيذ الطلب.');
+        throw new Error(data.error || data.execution?.message || 'تعذر تنفيذ الطلب.');
       }
 
       const steps = data.plan?.steps ?? [];
       const planText = steps.length
-        ? `خطة التنفيذ:\n${steps.map((step, index) => `${index + 1}. ${step.title}`).join('\n')}`
+        ? `خطة التنفيذ:\n${steps
+            .map((step, index) => `${index + 1}. ${step.title} — ${step.status ?? 'pending'}`)
+            .join('\n')}`
         : 'تم استلام المهمة.';
 
       setMessages((current) => [
@@ -73,7 +98,7 @@ export default function HomeScreen() {
         {
           id: Date.now() + 1,
           role: 'agent',
-          text: `${planText}\n\n${data.execution?.message ?? ''}${data.assistantMessage ? `\n\n${data.assistantMessage}` : ''}`,
+          text: `${planText}\n\n${formatExecution(data)}`,
         },
       ]);
     } catch (error) {
