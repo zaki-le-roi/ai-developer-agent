@@ -18,6 +18,7 @@ import { runWorkflow, type Workflow } from './workflow-engine.js';
 import { register, login, authenticate, requireAuth } from './auth.js';
 import { grantPermission, revokePermission, listPermissions } from './permission-store.js';
 import { githubRepo, branches, issues, pullRequests, actions, createIssue, commentIssue, createPullRequest, createBranch } from './github-api.js';
+import { startScheduler, listSchedules, createSchedule, disableSchedule } from './scheduler.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
@@ -226,6 +227,9 @@ app.post('/api/github/:id/branch',async(req,res)=>{const p=await getProject(req.
 app.get('/api/permissions', async (req,res)=>{res.json({success:true,permissions:await listPermissions(res.locals.user.id)});});
 app.post('/api/permissions', async (req,res)=>{try{const permission=req.body?.permission as any;const allowed=['READ_PROJECT','WRITE_PROJECT','DELETE_FILE','RUN_COMMAND','NETWORK_ACCESS','GITHUB_READ','GITHUB_WRITE','GITHUB_PUSH','GITHUB_MERGE','SEND_MESSAGE','BROWSER_AUTOMATION','SCHEDULE_WORKFLOW'];if(!allowed.includes(permission)){res.status(400).json({success:false,error:'صلاحية غير معروفة.'});return;}const projectId=typeof req.body?.projectId==='string'?req.body.projectId:null;res.status(201).json({success:true,permission:await grantPermission(res.locals.user.id,projectId,permission,typeof req.body?.scope==='string'?req.body.scope:undefined)});}catch(error){res.status(400).json({success:false,error:error instanceof Error?error.message:'تعذر منح الصلاحية.'})}});
 app.delete('/api/permissions/:id', async (req,res)=>{res.json({success:await revokePermission(req.params.id,res.locals.user.id)});});
+app.get('/api/schedules',async(req,res)=>{res.json({success:true,schedules:await listSchedules(res.locals.user.id)})});
+app.post('/api/schedules',async(req,res)=>{try{const projectId=typeof req.body?.projectId==='string'?req.body.projectId:'';const project=await getProject(projectId,res.locals.user.id);if(!project){res.status(404).json({success:false,error:'project not found'});return;}const cron=typeof req.body?.cron==='string'?req.body.cron.trim():'';const workflow=req.body?.workflow as Workflow|undefined;if(!cron||!workflow){res.status(400).json({success:false,error:'cron و workflow مطلوبان'});return;}res.status(201).json({success:true,schedule:await createSchedule(res.locals.user.id,projectId,workflow,cron)})}catch(e){res.status(400).json({success:false,error:e instanceof Error?e.message:'تعذر إنشاء الجدولة.'})}});
+app.post('/api/schedules/:id/disable',async(req,res)=>res.json({success:await disableSchedule(res.locals.user.id,req.params.id)}));
 app.get('/api/events', (req, res) => { eventsSse(req, res); });
 
 app.get('/api/tasks', async (req, res) => { const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : undefined; res.json({ success:true, tasks: await listTasks(projectId) }); });
@@ -307,6 +311,8 @@ app.post('/api/agent', async (req, res) => {
 app.use((_req, res) => {
   res.status(404).json({ success: false, error: 'Not found' });
 });
+
+void startScheduler();
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`BMZ AI Backend running on http://0.0.0.0:${PORT}`);
