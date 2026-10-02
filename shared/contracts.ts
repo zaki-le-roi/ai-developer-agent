@@ -3,12 +3,12 @@ export type PermissionLevel = 'read_only' | 'sandbox' | 'approval_required' | 'r
 export type PlanStepStatus = 'pending' | 'running' | 'completed' | 'failed';
 
 export type AgentAction =
-  | { type: 'inspect_workspace' }
+  | { type: 'inspect_workspace' }\n  | { type: 'list_files' }
   | { type: 'read_file'; path: string }
   | { type: 'write_file'; path: string; content: string }
   | { type: 'run_command'; command: string; args?: string[] }
   | { type: 'scaffold_app'; platform?: 'android' }
-  | { type: 'build_android' }
+  | { type: 'build_android' }\n  | { type: 'preview_web' }
   | { type: 'test' };
 
 export type AgentPlanStep = {
