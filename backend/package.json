@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "test": "tsx src/core-loop.test.ts",
+    "test": "tsx src/core-loop.test.ts src/workflow-engine.test.ts src/permission-store.test.ts",
     "start": "node dist/backend/src/server.js",
     "worker": "tsx src/worker.ts"
   },
