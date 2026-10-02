@@ -48,3 +48,8 @@ export async function downloadLatestArtifactNamed(projectId:string, artifactName
  }
  throw new Error(`لا يوجد Artifact ناجح باسم ${artifactName}.`);
 }
+
+
+export async function downloadLatestMobileArtifact(projectId: string) {
+  return downloadLatestArtifactNamed(projectId, 'bmz-ai-mobile-debug-apk');
+}
