@@ -30,7 +30,7 @@ export default function HomeScreen(){
  async function authenticate(){setAuthBusy(true);setAuthError('');try{const r=await fetch(apiBase+'/api/auth/'+authMode,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:authEmail.trim(),password:authPassword})});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر المصادقة.');setToken(d.token);void SecureStore.setItemAsync('bmz_auth_token',d.token);setAuthPassword('');}catch(e){setAuthError(e instanceof Error?e.message:'تعذر المصادقة.')}finally{setAuthBusy(false)}}
  useEffect(()=>{void SecureStore.getItemAsync('bmz_auth_token').then(value=>{if(value)setToken(value);});},[]);
  useEffect(()=>{if(token){void SecureStore.setItemAsync('bmz_auth_token',token);void loadProjects();}},[token]);
- useEffect(()=>{if(!projectId)return;void refreshAll();},[projectId]);
+ useEffect(()=>{if(!projectId)return;void refreshAll();const timer=setInterval(()=>{void refreshAll();},3000);return()=>clearInterval(timer);},[projectId,token]);
 
  async function loadProjects(){try{const r=await apiFetch(apiBase+'/api/projects');const d=await r.json();if(r.ok)setProjects(d.projects||[]);}catch{}}
  async function refreshFiles(pid=projectId){if(!pid)return;try{const r=await apiFetch(apiBase+'/api/projects/'+pid+'/files');const d=await r.json();if(r.ok)setFiles(d.files||[]);}catch{}}
