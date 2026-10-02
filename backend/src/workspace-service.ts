@@ -2,8 +2,8 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { createSandboxWorkspace } from './sandbox-core.js';
 
-const MAX_FILES = 500;
-const MAX_FILE_BYTES = 500_000;
+const MAX_FILES = 1000;
+const MAX_FILE_BYTES = 1_000_000;
 
 function safe(root:string, relative:string){
   if(!relative || path.isAbsolute(relative)) throw new Error('المسار يجب أن يكون نسبيًا.');
@@ -11,19 +11,19 @@ function safe(root:string, relative:string){
   if(rel.startsWith('..')||path.isAbsolute(rel)) throw new Error('المسار خارج مساحة المشروع.');
   return target;
 }
-async function walk(root:string, dir:string, out:string[]){
-  if(out.length>=MAX_FILES)return;
+async function walk(root:string, dir:string, out:string[], depth=0){
+  if(out.length>=MAX_FILES || depth>30)return;
   const entries=await fs.readdir(dir,{withFileTypes:true});
   for(const e of entries){
     if(out.length>=MAX_FILES)break;
-    if(['node_modules','.git','build','dist'].includes(e.name))continue;
+    if(['node_modules','.git','build','dist','.gradle'].includes(e.name))continue;
     const target=path.join(dir,e.name); const rel=path.relative(root,target).split(path.sep).join('/');
-    if(e.isDirectory()) await walk(root,target,out); else out.push(rel);
+    if(e.isDirectory()) await walk(root,target,out,depth+1); else out.push(rel);
   }
 }
 export async function listWorkspaceFiles(projectId:string){
   const ws=await createSandboxWorkspace(projectId); const out:string[]=[]; await walk(ws.directory,ws.directory,out);
-  return {workspaceId:ws.id,files:out};
+  return {workspaceId:ws.id,files:out.sort()};
 }
 export async function readWorkspaceFile(projectId:string,relative:string){
   const ws=await createSandboxWorkspace(projectId); const target=safe(ws.directory,relative);
@@ -34,5 +34,12 @@ export async function writeWorkspaceFile(projectId:string,relative:string,conten
   if(content.length>MAX_FILE_BYTES) throw new Error('الملف أكبر من الحد المسموح.');
   const ws=await createSandboxWorkspace(projectId); const target=safe(ws.directory,relative);
   await fs.mkdir(path.dirname(target),{recursive:true}); await fs.writeFile(target,content,'utf8');
+  return {path:relative};
+}
+export async function deleteWorkspaceFile(projectId:string,relative:string){
+  const ws=await createSandboxWorkspace(projectId); const target=safe(ws.directory,relative);
+  const stat=await fs.lstat(target);
+  if(stat.isDirectory()) throw new Error('حذف المجلدات غير مدعوم من هذه الواجهة.');
+  await fs.unlink(target);
   return {path:relative};
 }
