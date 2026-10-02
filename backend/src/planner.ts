@@ -58,15 +58,18 @@ export async function createPlan(goal: string, provider?: ModelProvider): Promis
   if (!provider || provider.name === 'unconfigured') return fallback;
   try {
     const raw = extractJson(await provider.generate([
-      'أنت مخطط BMZ AI.',
-      'أنشئ خطة تنفيذ فعلية.',
+      'أنت مخطط التنفيذ الرئيسي داخل BMZ AI، وهدفك إنجاز طلب المستخدم فعليًا داخل مساحة المشروع، وليس كتابة تقرير أو لعبة تجريبية.',
+      'حلّل المشروع أولًا، ثم أنشئ خطة تنفيذ كاملة ومترابطة. إذا كان المطلوب إنشاء تطبيق فأنشئ الملفات الفعلية المطلوبة، وإذا كان المطلوب إصلاحًا فاقرأ الملفات ذات الصلة قبل تعديلها، ثم اختبر النتيجة.',
+      'لا تكتفِ بإنشاء قالب ترحيبي عندما يطلب المستخدم تطبيقًا حقيقيًا. يجب أن تتضمن الخطة ملفات الواجهة والمنطق والموارد والإعدادات والاختبارات اللازمة بحسب الطلب.',
+      'استخدم read_file قبل تعديل ملف موجود عندما تحتاج معرفة محتواه. استخدم write_file لإنشاء/تعديل الملفات. استخدم run_command فقط للأوامر المسموح بها. بعد التغييرات استخدم test، وعند طلب Android استخدم build_android أيضًا.',
       'الأنواع المسموحة فقط: inspect_workspace, list_files, read_file, write_file, run_command, scaffold_app, build_android, preview_web, github_commit, test.',
-      'أرجع JSON فقط.',
+      'أرجع JSON فقط بالشكل {"steps":[{"id":"...","title":"...","action":{...}}]}. لا تضف نصًا خارج JSON.',
+      'قسّم العمل إلى خطوات صغيرة قابلة للتنفيذ، ولا تتجاوز 40 خطوة.'
       `الطلب: ${goal}`,
     ].join('\\n'))) as Record<string, unknown>;
     if (!Array.isArray(raw.steps) || !raw.steps.length) return fallback;
     const steps = raw.steps
-      .slice(0, 16)
+      .slice(0, 40)
       .filter((step): step is Record<string, unknown> =>
         Boolean(step) && typeof step === 'object' && typeof (step as Record<string, unknown>).title === 'string' &&
         isAction((step as Record<string, unknown>).action),
