@@ -176,6 +176,31 @@ function isAction(value: unknown): value is AgentAction {
   return true;
 }
 
+async function requestContinuation(
+  provider: ModelProvider | undefined,
+  goal: string,
+  observations: CoreObservation[],
+): Promise<AgentAction | null> {
+  if (!provider || provider.name === 'unconfigured') return null;
+  try {
+    const generated = await provider.generate([
+      'أنت حلقة القرار المستمرة داخل BMZ AI.',
+      'راجع الهدف والعمليات المنفذة حتى الآن. إذا لم يكتمل الهدف، أرجع إجراء JSON واحدًا إضافيًا فقط. إذا اكتمل تمامًا أرجع {"done":true}.',
+      'لا تعيد اختبارًا نجح إلا إذا غيّرت الملفات بعده. لا تكتفِ بالتلخيص.',
+      'الأنواع المسموحة: read_file, write_file, run_command, scaffold_app, build_android, preview_web, test.',
+      `الهدف: ${goal}`,
+      `الملاحظات: ${JSON.stringify(observations.slice(-12))}`,
+    ].join('\\n'));
+    const parsed = extractJson(generated);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const value = parsed as Record<string, unknown>;
+    if (value.done === true) return null;
+    return isAction(value.action) ? value.action : null;
+  } catch {
+    return null;
+  }
+}
+
 async function requestRepair(
   provider: ModelProvider | undefined,
   goal: string,
@@ -231,7 +256,13 @@ export async function runCoreLoop(
     const observation = await executeAction(workspaceProjectId, action, level);
     observations.push(observation);
 
-    if (observation.ok) continue;
+    if (observation.ok) {
+      if (!queue.length && iterations < MAX_ITERATIONS && action.type !== 'test') {
+        const next = await requestContinuation(provider, plan.goal, observations);
+        if (next) queue.push(next);
+      }
+      continue;
+    }
 
     const repair = await requestRepair(provider, plan.goal, observation);
     if (repair && iterations < MAX_ITERATIONS) {
