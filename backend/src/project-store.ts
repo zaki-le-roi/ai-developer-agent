@@ -47,11 +47,10 @@ export async function createProject(name: string, repositoryUrl: string | undefi
 
 export async function listProjects(userId: string): Promise<Project[]> {
   if (!userId) return [];
-  return (await load()).filter((project) => project.userId === userId);
+  return (await load()).filter(project => project.userId === userId);
 }
 
 export async function getProject(id: string, userId: string): Promise<Project | null> {
   if (!userId) return null;
-  const projects = await load();
-  return projects.find((project) => project.id === id && project.userId === userId) ?? null;
+  return (await load()).find(project => project.id === id && project.userId === userId) ?? null;
 }
