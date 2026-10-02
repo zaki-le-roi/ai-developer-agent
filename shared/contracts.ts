@@ -24,6 +24,9 @@ export type AgentPlan = {
 export type AgentRequest = {
   message: string;
   projectId?: string;
+  sessionId?: string;
+  permissionLevel?: PermissionLevel;
+  approvalToken?: string;
 };
 
 export type CoreAction = AgentAction;
@@ -43,9 +46,28 @@ export type AgentExecution = {
   observations: CoreObservation[];
 };
 
+export type ApprovalRequest = {
+  id: string;
+  projectId: string | null;
+  action: string;
+  reason: string;
+  createdAt: string;
+  expiresAt: string;
+  approved: boolean;
+};
+
+export type AgentSession = {
+  id: string;
+  projectId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AgentResponse = {
   success: boolean;
   projectId: string | null;
+  sessionId?: string;
+  approval?: ApprovalRequest;
   plan?: AgentPlan;
   execution?: AgentExecution;
   assistantMessage?: string;
