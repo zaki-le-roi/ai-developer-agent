@@ -15,6 +15,7 @@ import { listTasks, getTask } from './task-store.js';
 import { enqueueAgentTask, cancelTask } from './task-queue.js';
 import { eventsSse } from './realtime.js';
 import { runWorkflow, type Workflow } from './workflow-engine.js';
+import { register, login, authenticate } from './auth.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
@@ -46,6 +47,10 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json({ limit: '1mb' }));
+
+app.post('/api/auth/register', (req,res)=>{try{const email=typeof req.body?.email==='string'?req.body.email.trim():'';const password=typeof req.body?.password==='string'?req.body.password:'';if(!/^\\S+@\\S+\\.\\S+$/.test(email)){res.status(400).json({success:false,error:'بريد إلكتروني غير صالح.'});return;}res.status(201).json({success:true,user:register(email,password)})}catch(error){res.status(400).json({success:false,error:error instanceof Error?error.message:'تعذر إنشاء الحساب.'})}});
+app.post('/api/auth/login', (req,res)=>{try{const email=typeof req.body?.email==='string'?req.body.email.trim():'';const password=typeof req.body?.password==='string'?req.body.password:'';res.json({success:true,...login(email,password)})}catch(error){res.status(401).json({success:false,error:error instanceof Error?error.message:'تعذر تسجيل الدخول.'})}});
+app.get('/api/auth/me',(req,res)=>{const user=authenticate(req);if(!user){res.status(401).json({success:false,error:'غير مسجل الدخول.'});return}res.json({success:true,user:{id:user.id,email:user.email}})});
 
 app.get('/health', (_req, res) => {
   res.json({ success: true, service: 'BMZ AI Backend', status: 'ready', port: PORT });
