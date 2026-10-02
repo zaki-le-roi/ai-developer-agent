@@ -3,7 +3,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { createSandboxWorkspace } from './sandbox-core.js';
 
-const allowed = new Set(['npm', 'npx', 'tsc']);
+const allowed = new Set(['npm', 'npx', 'tsc', 'gradle']);
 
 function validateCommand(command: string, args: string[]): void {
   if (!allowed.has(command)) throw new Error('الأمر غير مسموح داخل Sandbox.');
@@ -14,7 +14,7 @@ function validateCommand(command: string, args: string[]): void {
   if (command === 'npm' && first === 'run' && !['build', 'test', 'lint', 'typecheck'].includes(args[1] ?? '')) {
     throw new Error('سكريبت npm غير مسموح داخل Sandbox.');
   }
-  if (command === 'npx' && first !== 'tsc') {
+  if (command === 'gradle' && !['--version', '--no-daemon', 'assembleDebug', 'test'].includes(first) && !args.includes('assembleDebug')) {\n    throw new Error('يسمح لـ gradle داخل Sandbox فقط ببناء assembleDebug أو التحقق من الإصدار.');\n  }\n  if (command === 'npx' && first !== 'tsc') {
     throw new Error('يسمح لـ npx فقط بتشغيل tsc داخل Sandbox.');
   }
   if (command === 'tsc' && args.some((arg) => arg.startsWith('--project=') || arg === '--build')) {
