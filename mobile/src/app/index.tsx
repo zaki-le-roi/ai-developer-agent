@@ -111,7 +111,6 @@ export default function HomeScreen() {
         activeSessionId = sessionData.session.id;
         setSessionId(activeSessionId);
       }
-      }
 
       const response = await fetch(`${API_URL}/api/agent`, {
         method: 'POST',
@@ -128,7 +127,9 @@ export default function HomeScreen() {
 
       if (data.approval) {
         setPendingApproval(data.approval);
-        setMessages((current) => [...current, { id: Date.now() + 1, role: 'agent', text: `مطلوب موافقة قبل التنفيذ.\\n\\n${data.approval.reason}` }]);
+        setMessages((current) => [...current, { id: Date.now() + 1, role: 'agent', text: `مطلوب موافقة قبل التنفيذ.
+
+${data.approval.reason}` }]);
         return;
       }
       if (!response.ok || !data.success) throw new Error(data.error || data.execution?.message || 'تعذر تنفيذ الطلب.');
