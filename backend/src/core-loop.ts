@@ -19,7 +19,7 @@ import {
   writeFileInSandbox,
 } from './sandbox-tools.js';
 
-const MAX_ITERATIONS = 8;
+const MAX_ITERATIONS = 40;
 
 function maskSecrets(value: string): string {
   return value
