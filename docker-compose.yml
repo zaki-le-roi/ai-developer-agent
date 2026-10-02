@@ -7,12 +7,39 @@ services:
       PORT: 4000
       BMZ_DATA_ROOT: /data
       BMZ_SANDBOX_ROOT: /sandbox/workspaces
+      BMZ_EMBED_WORKER: "false"
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      BMZ_MASTER_KEY: ${BMZ_MASTER_KEY:?BMZ_MASTER_KEY is required}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GITHUB_REDIRECT_URI: ${GITHUB_REDIRECT_URI:-}
     volumes:
       - bmz-data:/data
       - bmz-sandbox:/sandbox
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Worker.Dockerfile
+    environment:
+      BMZ_DATA_ROOT: /data
+      BMZ_SANDBOX_ROOT: /sandbox/workspaces
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      BMZ_MASTER_KEY: ${BMZ_MASTER_KEY:?BMZ_MASTER_KEY is required}
+    volumes:
+      - bmz-data:/data
+      - bmz-sandbox:/sandbox
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["local-model"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
 volumes:
   bmz-data:
   bmz-sandbox:
+  ollama-data:
