@@ -1,4 +1,5 @@
-import { DarkTheme, ThemeProvider, type ErrorBoundaryProps, Stack } from 'expo-router';
+import { type ErrorBoundaryProps, Stack } from 'expo-router';
+import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View } from 'react-native';
