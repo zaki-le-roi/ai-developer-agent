@@ -1,3 +1,7 @@
+concurrency:
+  group: bmz-ai-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 name: BMZ AI CI
 
 on:
