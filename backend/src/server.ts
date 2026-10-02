@@ -11,6 +11,10 @@ import { listWorkspaceFiles, readWorkspaceFile, writeWorkspaceFile, deleteWorksp
 import { commitWorkspaceToGitHub } from './github-write.js';
 import { latestAndroidBuild, downloadLatestAndroidArtifact, downloadLatestArtifactNamed, downloadLatestMobileArtifact } from './github-actions.js';
 import { runCommandInSandbox } from './sandbox-tools.js';
+import { listTasks, getTask } from './task-store.js';
+import { enqueueAgentTask, cancelTask } from './task-queue.js';
+import { eventsSse } from './realtime.js';
+import { runWorkflow, type Workflow } from './workflow-engine.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
@@ -196,6 +200,14 @@ app.post('/api/projects/:id/terminal', async (req, res) => {
     res.status(400).json({ success:false,error:error instanceof Error?error.message:'تعذر تنفيذ الأمر.' });
   }
 });
+
+app.get('/api/events', (req, res) => { eventsSse(req, res); });
+
+app.get('/api/tasks', async (req, res) => { const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : undefined; res.json({ success:true, tasks: await listTasks(projectId) }); });
+app.get('/api/tasks/:id', async (req, res) => { const task = await getTask(req.params.id); if(!task){res.status(404).json({success:false,error:'task not found'});return;} res.json({success:true,task}); });
+app.post('/api/tasks', async (req, res) => { const message=typeof req.body?.message==='string'?req.body.message.trim():''; const projectId=typeof req.body?.projectId==='string'?req.body.projectId:null; if(!message){res.status(400).json({success:false,error:'message is required'});return;} const task=await enqueueAgentTask(projectId,message); res.status(202).json({success:true,task}); });
+app.post('/api/tasks/:id/cancel', async (req, res) => { const task=await cancelTask(req.params.id); if(!task){res.status(404).json({success:false,error:'task not found'});return;} res.json({success:true,task}); });
+app.post('/api/workflows/run', async (req,res) => { const workflow=req.body?.workflow as Workflow|undefined; const projectId=typeof req.body?.projectId==='string'?req.body.projectId:''; if(!workflow||!projectId){res.status(400).json({success:false,error:'workflow و projectId مطلوبان'});return;} try{const result=await runWorkflow(workflow,projectId);res.json({success:true,result});}catch(error){res.status(400).json({success:false,error:error instanceof Error?error.message:'فشل تنفيذ Workflow'});} });
 
 app.get('/api/projects/:id/executions', async (req, res) => {
   const project = await getProject(req.params.id);
