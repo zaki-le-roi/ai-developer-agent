@@ -61,6 +61,7 @@ export default function HomeScreen() {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [sending, setSending] = useState(false);
+  const [projectId, setProjectId] = useState<string | null>(null);
 
   async function sendMessage() {
     const cleanMessage = message.trim();
@@ -74,10 +75,25 @@ export default function HomeScreen() {
     setSending(true);
 
     try {
+      let activeProjectId = projectId;
+      if (!activeProjectId) {
+        const projectResponse = await fetch(`${API_URL}/api/projects`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'مشروعي في BMZ AI' }),
+        });
+        const projectData = (await projectResponse.json()) as { project?: { id?: string } };
+        if (!projectResponse.ok || !projectData.project?.id) {
+          throw new Error('تعذر إنشاء مساحة المشروع.');
+        }
+        activeProjectId = projectData.project.id;
+        setProjectId(activeProjectId);
+      }
+
       const response = await fetch(`${API_URL}/api/agent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: cleanMessage }),
+        body: JSON.stringify({ message: cleanMessage, projectId: activeProjectId }),
       });
 
       const data = (await response.json()) as AgentResponse;
