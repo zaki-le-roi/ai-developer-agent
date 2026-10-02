@@ -164,7 +164,7 @@ app.get('/api/projects/:id/preview', async (req, res) => {
 app.get('/api/projects/:id/github/build', async (req, res) => {
   const project = await getProject(req.params.id, res.locals.user.id);
   if (!project) { res.status(404).json({success:false,error:'project not found'}); return; }
-  try { res.json({success:true, ...(await latestAndroidBuild(project.id))}); }
+  try { res.json({success:true, ...(await latestAndroidBuild(project.id,res.locals.user.id))}); }
   catch(error){ res.status(400).json({success:false,error:error instanceof Error?error.message:'تعذر قراءة حالة بناء Android.'}); }
 });
 
@@ -173,7 +173,7 @@ app.get('/api/mobile/apk', async (_req, res) => {
     const projects = await listProjects(res.locals.user.id);
     const project = projects.find((item) => item.repositoryUrl);
     if (!project) { res.status(404).json({success:false,error:'لا يوجد مشروع مرتبط بمستودع GitHub.'}); return; }
-    const apk = await downloadLatestArtifactNamed(project.id, 'bmz-ai-mobile-debug-apk');
+    const apk = await downloadLatestArtifactNamed(project.id,res.locals.user.id, 'bmz-ai-mobile-debug-apk');
     res.status(200).type('application/vnd.android.package-archive').set('Content-Disposition','attachment; filename="bmz-ai.apk"').send(apk);
   } catch(error) {
     res.status(404).json({success:false,error:error instanceof Error?error.message:'لا يوجد APK لتطبيق BMZ AI بعد.'});
@@ -184,7 +184,7 @@ app.get('/api/projects/:id/github/build/apk', async (req, res) => {
   const project = await getProject(req.params.id, res.locals.user.id);
   if (!project) { res.status(404).json({success:false,error:'project not found'}); return; }
   try {
-    const artifact = await downloadLatestMobileArtifact(project.id);
+    const artifact = await downloadLatestMobileArtifact(project.id,res.locals.user.id);
     res.status(200).type('application/vnd.android.package-archive').set('Content-Disposition','attachment; filename="bmz-ai.apk"').send(artifact);
   } catch(error) {
     res.status(404).json({success:false,error:error instanceof Error?error.message:'لا يوجد APK جاهز للتنزيل.'});
