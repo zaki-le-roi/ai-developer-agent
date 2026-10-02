@@ -50,7 +50,7 @@ function isAction(value: unknown): value is AgentAction {
     return typeof item.command === 'string' &&
       (item.args === undefined || (Array.isArray(item.args) && item.args.every((arg) => typeof arg === 'string')));
   }
-  return ['inspect_workspace', 'list_files', 'scaffold_app', 'build_android', 'preview_web', 'test'].includes(String(item.type));
+  return ['inspect_workspace', 'list_files', 'scaffold_app', 'build_android', 'preview_web', 'github_commit', 'test'].includes(String(item.type));
 }
 
 export async function createPlan(goal: string, provider?: ModelProvider): Promise<AgentPlan> {
