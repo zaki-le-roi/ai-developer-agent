@@ -93,6 +93,7 @@ export async function importGitHubRepository(projectId: string, repositoryUrl: s
   const workspace = await createSandboxWorkspace(projectId);
   let totalBytes = 0;
   let imported = 0;
+  const importedPaths: string[] = [];
 
   for (const file of files) {
     if (typeof file.size === 'number' && file.size > MAX_FILE_BYTES) continue;
@@ -118,7 +119,12 @@ export async function importGitHubRepository(projectId: string, repositoryUrl: s
     await fs.writeFile(target, raw);
     totalBytes += raw.length;
     imported += 1;
+    importedPaths.push(relative);
   }
+
+  const manifestPath = path.join(workspace.directory, '.bmz', 'import-manifest.json');
+  await fs.mkdir(path.dirname(manifestPath), { recursive: true });
+  await fs.writeFile(manifestPath, JSON.stringify({ repository: `${owner}/${repo}`, branch, paths: importedPaths }, null, 2), 'utf8');
 
   return {
     projectId,
