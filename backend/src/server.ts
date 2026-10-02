@@ -19,6 +19,8 @@ import { runWorkflow, type Workflow } from './workflow-engine.js';
 import { register, login, logout, authenticate, requireAuth } from './auth.js';
 import { grantPermission, revokePermission, listPermissions, hasPermission } from './permission-store.js';
 import { browserOpen, browserRead, browserClick, browserFill, browserClose } from './browser-service.js';
+import { saveTelegramBot, telegramSend } from './telegram-integration.js';
+import { listIntegrations } from './integration-registry.js';
 import { githubRepo, branches, issues, pullRequests, actions, createIssue, commentIssue, createPullRequest, createBranch } from './github-api.js';
 import { startScheduler, listSchedules, createSchedule, disableSchedule } from './scheduler.js';
 import { createWebhook, listWebhooks, resolveWebhook, verifyWebhookSignature } from './webhook-store.js';
@@ -234,6 +236,9 @@ app.post('/api/projects/:id/terminal', async (req, res) => {
   }
 });
 
+app.get('/api/integrations',async(_req,res)=>res.json({success:true,integrations:[...listIntegrations(),{id:'telegram',name:'Telegram',version:'1.0.0',capabilities:['send_message']},{id:'webhook',name:'HTTP Webhook',version:'1.0.0',capabilities:['send_message']}]}));
+app.post('/api/integrations/telegram/connect',async(req,res)=>{try{await saveTelegramBot(res.locals.user.id,String(req.body?.token??''));res.json({success:true,connected:true});}catch(e){res.status(400).json({success:false,error:e instanceof Error?e.message:'تعذر ربط Telegram.'});}});
+app.post('/api/integrations/telegram/send',async(req,res)=>{if(!await hasPermission(res.locals.user.id,null,'SEND_MESSAGE')){res.status(403).json({success:false,error:'صلاحية SEND_MESSAGE غير ممنوحة.'});return;}try{res.json({success:true,result:await telegramSend(res.locals.user.id,String(req.body?.chatId??''),String(req.body?.text??''))});}catch(e){res.status(400).json({success:false,error:e instanceof Error?e.message:'تعذر إرسال الرسالة.'});}});
 app.post('/api/browser/open',async(req,res)=>{if(!await hasPermission(res.locals.user.id,null,'BROWSER_AUTOMATION')){res.status(403).json({success:false,error:'صلاحية BROWSER_AUTOMATION غير ممنوحة.'});return;}try{const sessionId=String(req.body?.sessionId??'');const url=String(req.body?.url??'');const allowed=Array.isArray(req.body?.allowedDomains)?req.body.allowedDomains.filter((x:any)=>typeof x==='string'):[];res.json({success:true,result:await browserOpen(sessionId,url,allowed)});}catch(e){res.status(400).json({success:false,error:e instanceof Error?e.message:'فشل فتح الصفحة.'});}});
 app.post('/api/browser/read',async(req,res)=>{if(!await hasPermission(res.locals.user.id,null,'BROWSER_AUTOMATION')){res.status(403).json({success:false,error:'صلاحية BROWSER_AUTOMATION غير ممنوحة.'});return;}try{res.json({success:true,result:await browserRead(String(req.body?.sessionId??''))});}catch(e){res.status(400).json({success:false,error:e instanceof Error?e.message:'فشل قراءة الصفحة.'});}});
 app.post('/api/browser/click',async(req,res)=>{if(!await hasPermission(res.locals.user.id,null,'BROWSER_AUTOMATION')){res.status(403).json({success:false,error:'صلاحية BROWSER_AUTOMATION غير ممنوحة.'});return;}try{res.json({success:true,result:await browserClick(String(req.body?.sessionId??''),String(req.body?.selector??''))});}catch(e){res.status(400).json({success:false,error:e instanceof Error?e.message:'فشل النقر.'});}});
