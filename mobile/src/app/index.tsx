@@ -1,6 +1,7 @@
 import React,{useEffect,useMemo,useState} from 'react';
 import {Alert,KeyboardAvoidingView,Platform,Pressable,SafeAreaView,ScrollView,StatusBar,StyleSheet,Text,TextInput,View} from 'react-native';
 import {Linking} from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 
 const API_URL=process.env.EXPO_PUBLIC_API_URL??'http://192.168.1.119:4000';
 type Tab='home'|'files'|'terminal'|'plan'|'logs'|'preview'|'memory'|'settings';
@@ -25,8 +26,9 @@ export default function HomeScreen(){
  const base=projectId?apiBase+'/api/projects/'+projectId:'';
 
  async function apiFetch(url:string,init?:RequestInit){const headers=new Headers(init?.headers);if(token)headers.set('Authorization','Bearer '+token);return fetch(url,{...init,headers});}
- async function authenticate(){setAuthBusy(true);setAuthError('');try{const r=await fetch(apiBase+'/api/auth/'+authMode,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:authEmail.trim(),password:authPassword})});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر المصادقة.');setToken(d.token);setAuthPassword('');}catch(e){setAuthError(e instanceof Error?e.message:'تعذر المصادقة.')}finally{setAuthBusy(false)}}
- useEffect(()=>{if(token)void loadProjects();},[token]);
+ async function authenticate(){setAuthBusy(true);setAuthError('');try{const r=await fetch(apiBase+'/api/auth/'+authMode,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:authEmail.trim(),password:authPassword})});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر المصادقة.');setToken(d.token);void SecureStore.setItemAsync('bmz_auth_token',d.token);setAuthPassword('');}catch(e){setAuthError(e instanceof Error?e.message:'تعذر المصادقة.')}finally{setAuthBusy(false)}}
+ useEffect(()=>{void SecureStore.getItemAsync('bmz_auth_token').then(value=>{if(value)setToken(value);});},[]);
+ useEffect(()=>{if(token){void SecureStore.setItemAsync('bmz_auth_token',token);void loadProjects();}},[token]);
  useEffect(()=>{if(!projectId)return;void refreshAll();},[projectId]);
 
  async function loadProjects(){try{const r=await apiFetch(apiBase+'/api/projects');const d=await r.json();if(r.ok)setProjects(d.projects||[]);}catch{}}
