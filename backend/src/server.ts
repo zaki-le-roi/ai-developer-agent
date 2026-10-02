@@ -150,7 +150,7 @@ app.get('/api/projects/:id/github/build/apk', async (req, res) => {
   if (!project) { res.status(404).json({success:false,error:'project not found'}); return; }
   try {
     const artifact = await downloadLatestAndroidArtifact(project.id);
-    res.status(200).type('application/zip').set('Content-Disposition','attachment; filename="bmz-ai-debug-apk.zip"').send(artifact);
+    res.status(200).type('application/vnd.android.package-archive').set('Content-Disposition','attachment; filename="bmz-ai-debug.apk"').send(artifact);
   } catch(error) {
     res.status(404).json({success:false,error:error instanceof Error?error.message:'لا يوجد APK جاهز للتنزيل.'});
   }
