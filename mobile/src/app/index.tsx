@@ -22,7 +22,7 @@ export default function HomeScreen(){
  const [terminalCommand,setTerminalCommand]=useState(''),[terminalArgs,setTerminalArgs]=useState(''),[terminalOut,setTerminalOut]=useState('');
  const [buildStatus,setBuildStatus]=useState(''),[artifactAvailable,setArtifactAvailable]=useState(false),[commitStatus,setCommitStatus]=useState('');
  const [showNewProject,setShowNewProject]=useState(false),[showSettings,setShowSettings]=useState(false);
- const [workflows,setWorkflows]=useState<any[]>([]),[workflowNodes,setWorkflowNodes]=useState<any[]>([]),[workflowName,setWorkflowName]=useState('Workflow جديد'),[workflowBusy,setWorkflowBusy]=useState(false),[integrations,setIntegrations]=useState<any[]>([]),[permissions,setPermissions]=useState<any[]>([]);
+ const [workflows,setWorkflows]=useState<any[]>([]),[workflowNodes,setWorkflowNodes]=useState<any[]>([]),[workflowName,setWorkflowName]=useState('Workflow جديد'),[workflowBusy,setWorkflowBusy]=useState(false),[integrations,setIntegrations]=useState<any[]>([]),[permissions,setPermissions]=useState<any[]>([]),[previewUrl,setPreviewUrl]=useState('');
 
  const base=projectId?apiBase+'/api/projects/'+projectId:'';
 
@@ -37,6 +37,7 @@ export default function HomeScreen(){
  async function refreshBuild(){if(!projectId)return;try{const r=await apiFetch(base+'/github/build');const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر قراءة البناء.');if(!d.found){setBuildStatus('لا يوجد بناء بعد.');setArtifactAvailable(false);return;}const run=d.run;setArtifactAvailable(Boolean(d.artifact));setBuildStatus(run.status==='completed'?(run.conclusion==='success'?'البناء ناجح — APK متاح.':'البناء فشل.'):'البناء قيد التنفيذ...');}catch(e){setBuildStatus(e instanceof Error?e.message:'تعذر قراءة البناء.');}}
  async function refreshMemory(){if(!projectId)return;try{const r=await apiFetch(base+'/memory');const d=await r.json();if(r.ok)setMemory(d.entries||[]);}catch{}}
  async function refreshExecutions(){if(!projectId)return;try{const r=await apiFetch(base+'/executions');const d=await r.json();if(r.ok)setExecutions(d.executions||[]);}catch{}}
+ async function startPreview(){if(!projectId)return;try{const r=await apiFetch(apiBase+'/api/projects/'+encodeURIComponent(projectId)+'/preview/start',{method:'POST'});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر تشغيل Preview.');const url=apiBase+d.preview.urlPath+'?token='+encodeURIComponent(d.preview.token);setPreviewUrl(url);await Linking.openURL(url);}catch(e){Alert.alert('Preview',e instanceof Error?e.message:'تعذر تشغيل Preview.')}}
  async function refreshIntegrations(){try{const r=await apiFetch(apiBase+'/api/integrations');const d=await r.json();if(r.ok)setIntegrations(d.integrations||[]);const p=await apiFetch(apiBase+'/api/permissions');const pd=await p.json();if(p.ok)setPermissions(pd.permissions||[]);}catch{}}
  async function refreshWorkflows(){if(!projectId)return;try{const r=await apiFetch(apiBase+'/api/workflows?projectId='+encodeURIComponent(projectId));const d=await r.json();if(r.ok)setWorkflows(d.workflows||[]);}catch{}}
  async function refreshAll(){await Promise.all([refreshFiles(),refreshBuild(),refreshMemory(),refreshExecutions(),refreshWorkflows(),refreshIntegrations()]);}
