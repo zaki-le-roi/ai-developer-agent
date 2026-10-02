@@ -102,6 +102,8 @@ jobs:
       - name: Build BMZ AI APK
         working-directory: mobile/android
         timeout-minutes: 25
+        env:
+          GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx4g\ -XX:MaxMetaspaceSize=1g
         run: chmod +x gradlew && ./gradlew --no-daemon --max-workers=2 assembleDebug --stacktrace --console=plain
       - name: Upload BMZ AI mobile APK
         uses: actions/upload-artifact@v4
