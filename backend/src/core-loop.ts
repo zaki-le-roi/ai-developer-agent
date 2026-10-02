@@ -18,6 +18,13 @@ import {
 
 const MAX_ITERATIONS = 8;
 
+function maskSecrets(value: string): string {
+  return value
+    .replace(/(OPENAI_API_KEY|GITHUB_TOKEN|BMZ_API_KEY|API_KEY|SECRET|PASSWORD)\\s*[=:]\\s*[^\\s\\n]+/gi, '$1=[MASKED]')
+    .replace(/gh[pousr]_[A-Za-z0-9_\\-]{20,}/g, '[MASKED_GITHUB_TOKEN]')
+    .replace(/sk-[A-Za-z0-9_-]{20,}/g, '[MASKED_API_KEY]');
+}
+
 async function inspectWorkspace(workspace: SandboxWorkspace): Promise<CoreObservation> {
   const entries = await fs.readdir(workspace.directory, { withFileTypes: true });
   const names = entries.slice(0, 100).map((entry) => entry.name);
@@ -51,7 +58,7 @@ async function executeAction(
         action: action.type,
         ok: true,
         summary: `تمت قراءة الملف ${action.path}.`,
-        stdout: result.content.slice(0, 20000),
+        stdout: maskSecrets(result.content.slice(0, 20000)),
       };
     }
 
@@ -70,9 +77,28 @@ async function executeAction(
         action: action.type,
         ok: result.code === 0,
         summary: result.code === 0 ? 'نجح تنفيذ الأمر.' : `فشل الأمر برمز ${result.code}.`,
-        stdout: result.stdout,
-        stderr: result.stderr,
+        stdout: maskSecrets(result.stdout),
+        stderr: maskSecrets(result.stderr),
       };
+    }
+
+    const packagePath = path.join(workspace.directory, 'package.json');
+    try {
+      const packageJson = JSON.parse(await fs.readFile(packagePath, 'utf8')) as { scripts?: Record<string, string> };
+      const scripts = packageJson.scripts ?? {};
+      const selected = ['test', 'build', 'typecheck', 'lint'].find((name) => typeof scripts[name] === 'string');
+      if (selected) {
+        const result = await runCommandInSandbox(projectId, 'npm', ['run', selected]);
+        return {
+          action: 'test',
+          ok: result.code === 0,
+          summary: result.code === 0 ? `نجح npm run ${selected}.` : `فشل npm run ${selected} برمز ${result.code}.`,
+          stdout: maskSecrets(result.stdout),
+          stderr: maskSecrets(result.stderr),
+        };
+      }
+    } catch {
+      // لا يوجد package.json صالح؛ ننتقل إلى الاختبار الداخلي.
     }
 
     const testPath = '.bmz-test.txt';
