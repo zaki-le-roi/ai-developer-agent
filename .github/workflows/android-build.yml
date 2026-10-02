@@ -19,10 +19,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Install Android SDK components
-        uses: android-actions/setup-android@v3
-      - name: Install required SDK
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Prepare Gradle files
+        run: |
+          base64 -d root.gradle.b64 > build.gradle
+          base64 -d app/build.gradle.b64 > app/build.gradle
+      - name: Install Android SDK
+        run: |
+          sdkmanager --licenses < /dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - name: Build debug APK
         run: gradle --no-daemon assembleDebug
       - name: Upload APK
