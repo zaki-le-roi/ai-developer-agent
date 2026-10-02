@@ -4,8 +4,8 @@ import { getProject } from './project-store.js';
 function parts(url:string){const u=new URL(url);if(u.protocol!=='https:'||u.hostname!=='github.com')throw new Error('رابط GitHub غير صالح.');const p=u.pathname.split('/').filter(Boolean);if(p.length<2)throw new Error('رابط GitHub غير صالح.');return {owner:p[0],name:p[1].replace(/\.git$/i,'')};}
 async function api<T>(url:string,init?:RequestInit):Promise<T>{if(!process.env.GITHUB_TOKEN)throw new Error('GITHUB_TOKEN غير مضبوط.');const r=await fetch(url,{...init,headers:{Accept:'application/vnd.github+json',Authorization:`Bearer ${process.env.GITHUB_TOKEN}`,'X-GitHub-Api-Version':'2022-11-28','User-Agent':'BMZ-AI'}});if(!r.ok)throw new Error(`GitHub API HTTP ${r.status}`);return r.json() as Promise<T>;}
 async function raw(url:string):Promise<Buffer>{if(!process.env.GITHUB_TOKEN)throw new Error('GITHUB_TOKEN غير مضبوط.');const r=await fetch(url,{headers:{Accept:'application/vnd.github+json',Authorization:`Bearer ${process.env.GITHUB_TOKEN}`,'X-GitHub-Api-Version':'2022-11-28','User-Agent':'BMZ-AI'}});if(!r.ok)throw new Error(`GitHub API HTTP ${r.status}`);return Buffer.from(await r.arrayBuffer());}
-export async function latestAndroidBuild(projectId:string){
- const project=await getProject(projectId);if(!project?.repositoryUrl)throw new Error('المشروع غير مرتبط بـ GitHub.');
+export async function latestAndroidBuild(projectId:string,userId:string){
+ const project=await getProject(projectId,userId);if(!project?.repositoryUrl)throw new Error('المشروع غير مرتبط بـ GitHub.');
  const {owner,name}=parts(project.repositoryUrl);
  const runs=await api<{workflow_runs:Array<{id:number;status:string;conclusion:string|null;html_url:string;head_sha:string;created_at:string;updated_at:string}>}>(`https://api.github.com/repos/${owner}/${name}/actions/runs?per_page=50`);
  const run=runs.workflow_runs.find(x=>x.status==='in_progress'||x.status==='queued')??runs.workflow_runs.find(x=>x.conclusion==='success'||x.conclusion==='failure'||x.conclusion==='cancelled');
@@ -14,7 +14,7 @@ export async function latestAndroidBuild(projectId:string){
  const apk=artifacts.artifacts.find(x=>x.name==='bmz-ai-mobile-debug-apk'&&!x.expired) ?? artifacts.artifacts.find(x=>x.name==='bmz-ai-debug-apk'&&!x.expired);
  return {found:true,run:{id:run.id,status:run.status,conclusion:run.conclusion,htmlUrl:run.html_url,headSha:run.head_sha,updatedAt:run.updated_at},artifact:apk?{id:apk.id,name:apk.name,size:apk.size_in_bytes,downloadUrl:apk.archive_download_url}:null};
 }
-export async function downloadLatestAndroidArtifact(projectId:string){
+export async function downloadLatestAndroidArtifact(projectId:string,userId:string){
  const project=await getProject(projectId);if(!project?.repositoryUrl)throw new Error('المشروع غير مرتبط بـ GitHub.');
  const {owner,name}=parts(project.repositoryUrl);
  const runs=await api<{workflow_runs:Array<{id:number;status:string;conclusion:string|null}>}>(`https://api.github.com/repos/${owner}/${name}/actions/runs?per_page=50`);
@@ -30,7 +30,7 @@ export async function downloadLatestAndroidArtifact(projectId:string){
  return entry.getData();
 }
 
-export async function downloadLatestArtifactNamed(projectId:string, artifactName:string){
+export async function downloadLatestArtifactNamed(projectId:string,userId:string, artifactName:string){
  const project=await getProject(projectId);
  if(!project?.repositoryUrl)throw new Error('المشروع غير مرتبط بـ GitHub.');
  const {owner,name}=parts(project.repositoryUrl);
@@ -50,6 +50,6 @@ export async function downloadLatestArtifactNamed(projectId:string, artifactName
 }
 
 
-export async function downloadLatestMobileArtifact(projectId: string) {
-  return downloadLatestArtifactNamed(projectId, 'bmz-ai-mobile-debug-apk');
+export async function downloadLatestMobileArtifact(projectId: string,userId:string) {
+  return downloadLatestArtifactNamed(projectId,userId, 'bmz-ai-mobile-debug-apk');
 }
