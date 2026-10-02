@@ -7,7 +7,7 @@ export type Project = {
   name: string;
   createdAt: string;
   repositoryUrl?: string;
-  userId?: string;
+  userId: string;
 };
 
 const dataDir = path.resolve(process.env.BMZ_DATA_ROOT ?? path.join(process.cwd(), 'backend', 'data'));
@@ -30,25 +30,28 @@ async function save(projects: Project[]): Promise<void> {
   await fs.rename(temp, dataFile);
 }
 
-export async function createProject(name: string, repositoryUrl?: string, userId?: string): Promise<Project> {
+export async function createProject(name: string, repositoryUrl: string | undefined, userId: string): Promise<Project> {
+  if (!userId) throw new Error('userId is required');
   const projects = await load();
-  const project = {
+  const project: Project = {
     id: randomUUID(),
     name: name.trim().slice(0, 120) || 'مشروع جديد',
     createdAt: new Date().toISOString(),
+    userId,
     ...(repositoryUrl ? { repositoryUrl } : {}),
-    ...(userId ? { userId } : {}),
   };
   projects.push(project);
   await save(projects);
   return project;
 }
 
-export async function listProjects(): Promise<Project[]> {
-  return load();
+export async function listProjects(userId: string): Promise<Project[]> {
+  if (!userId) return [];
+  return (await load()).filter((project) => project.userId === userId);
 }
 
-export async function getProject(id: string): Promise<Project | null> {
+export async function getProject(id: string, userId: string): Promise<Project | null> {
+  if (!userId) return null;
   const projects = await load();
-  return projects.find((project) => project.id === id) ?? null;
+  return projects.find((project) => project.id === id && project.userId === userId) ?? null;
 }
