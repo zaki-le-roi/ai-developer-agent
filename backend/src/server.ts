@@ -22,7 +22,7 @@ import { startScheduler, listSchedules, createSchedule, disableSchedule } from '
 import { createWebhook, listWebhooks, resolveWebhook } from './webhook-store.js';
 import { listWorkflows, getWorkflow, createWorkflow, updateWorkflow, deleteWorkflow } from './workflow-store.js';
 import { startPreview, previewInfo, stopPreview, proxyPreview } from './preview-service.js';
-import { createOAuthState, consumeOAuthState, exchangeGitHubCode } from './github-auth.js';
+import { createOAuthState, consumeOAuthState, exchangeGitHubCode, githubToken } from './github-auth.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
@@ -61,6 +61,7 @@ app.post('/api/auth/logout',(req,res)=>{res.json({success:logout(req)})});
 app.get('/api/auth/me',(req,res)=>{const user=authenticate(req);if(!user){res.status(401).json({success:false,error:'غير مسجل الدخول.'});return}res.json({success:true,user:{id:user.id,email:user.email}})});
 
 app.get('/api/github/oauth/start', (req,res)=>{const user=authenticate(req);if(!user){res.status(401).json({success:false,error:'المصادقة مطلوبة.'});return;}const clientId=process.env.GITHUB_CLIENT_ID;const redirect=process.env.GITHUB_REDIRECT_URI;if(!clientId||!redirect){res.status(503).json({success:false,error:'GitHub OAuth غير مهيأ على الخادم.'});return;}const state=createOAuthState(user.id);const url=new URL('https://github.com/login/oauth/authorize');url.searchParams.set('client_id',clientId);url.searchParams.set('redirect_uri',redirect);url.searchParams.set('scope','repo read:user');url.searchParams.set('state',state);res.json({success:true,url:url.toString()});});
+app.get('/api/github/oauth/status',(req,res)=>{const user=authenticate(req);if(!user){res.status(401).json({success:false,error:'المصادقة مطلوبة.'});return;}res.json({success:true,connected:Boolean(githubToken(user.id))});});
 app.get('/api/github/oauth/callback', async (req,res)=>{try{const state=typeof req.query.state==='string'?req.query.state:'';const code=typeof req.query.code==='string'?req.query.code:'';if(!state||!code){res.status(400).send('OAuth callback غير مكتمل.');return;}const userId=consumeOAuthState(state);await exchangeGitHubCode(userId,code);res.type('html').send('<html lang="ar" dir="rtl"><body><h2>تم ربط GitHub بنجاح.</h2><p>يمكنك العودة إلى BMZ AI.</p></body></html>');}catch(e){res.status(400).send(e instanceof Error?e.message:'فشل ربط GitHub.');}});
 app.get('/health', (_req, res) => {
   res.json({ success: true, service: 'BMZ AI Backend', status: 'ready', port: PORT });
