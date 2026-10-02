@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 import type {
   AgentAction,
   AgentPlan,
