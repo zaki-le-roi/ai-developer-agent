@@ -29,3 +29,22 @@ export async function downloadLatestAndroidArtifact(projectId:string){
  if(!entry)throw new Error('لم تحتوي حزمة GitHub على ملف APK.');
  return entry.getData();
 }
+
+export async function downloadLatestArtifactNamed(projectId:string, artifactName:string){
+ const project=await getProject(projectId);
+ if(!project?.repositoryUrl)throw new Error('المشروع غير مرتبط بـ GitHub.');
+ const {owner,name}=parts(project.repositoryUrl);
+ const runs=await api<{workflow_runs:Array<{id:number;status:string;conclusion:string|null}>}>(`https://api.github.com/repos/${owner}/${name}/actions/runs?per_page=100`);
+ for(const run of runs.workflow_runs.filter(x=>x.status==='completed'&&x.conclusion==='success')){
+   const artifacts=await api<{artifacts:Array<{name:string;expired:boolean;archive_download_url:string}>}>(`https://api.github.com/repos/${owner}/${name}/actions/runs/${run.id}/artifacts?per_page=100`);
+   const artifact=artifacts.artifacts.find(x=>x.name===artifactName&&!x.expired);
+   if(artifact){
+     const archive=await raw(artifact.archive_download_url);
+     const zip=new AdmZip(archive);
+     const entry=zip.getEntries().find((item)=>item.entryName.toLowerCase().endsWith('.apk')&&!item.isDirectory);
+     if(!entry)throw new Error(`لم تحتوي حزمة ${artifactName} على APK.`);
+     return entry.getData();
+   }
+ }
+ throw new Error(`لا يوجد Artifact ناجح باسم ${artifactName}.`);
+}
