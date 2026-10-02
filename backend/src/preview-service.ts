@@ -24,7 +24,7 @@ export async function startPreview(projectId:string){
   if(existing&&!existing.process.killed)return {port:existing.port,token:existing.token,status:'running'};
   const workspace=await createSandboxWorkspace(projectId);
   const spec=await detectCommand(workspace.directory,nextPort++);
-  const child=spawn(spec.command,spec.args,{cwd:workspace.directory,shell:false,env:{...process.env,NODE_ENV:'development'},stdio:['ignore','pipe','pipe']});
+  const child=spawn(spec.command,spec.args,{cwd:workspace.directory,shell:false,env:{PATH:process.env.PATH??'',NODE_ENV:'development',PORT:String(port),...(process.env.JAVA_HOME?{JAVA_HOME:process.env.JAVA_HOME}:{}),...(process.env.ANDROID_HOME?{ANDROID_HOME:process.env.ANDROID_HOME}:{}),...(process.env.ANDROID_SDK_ROOT?{ANDROID_SDK_ROOT:process.env.ANDROID_SDK_ROOT}:{}),...(process.env.GRADLE_USER_HOME?{GRADLE_USER_HOME:process.env.GRADLE_USER_HOME}:{})},stdio:['ignore','pipe','pipe']});
   const token=randomBytes(24).toString('base64url');
   const item:Preview={projectId,port:nextPort-1,token,process:child,startedAt:new Date().toISOString()};
   previews.set(projectId,item);
