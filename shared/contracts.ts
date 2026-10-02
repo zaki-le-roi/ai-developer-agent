@@ -1,3 +1,12 @@
-export type PermissionLevel='read_only'|'sandbox'|'approval_required'|'real_execution';
-export type AgentAction={type:'inspect_workspace'};
-export type AgentRequest={message:string;projectId?:string;sessionId?:string;permissionLevel?:PermissionLevel;approvalToken?:string};
+export type PermissionLevel = 'read_only' | 'sandbox' | 'approval_required' | 'real_execution';
+export type PlanStepStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type AgentAction = any;
+export type AgentPlanStep = any;
+export type AgentPlan = any;
+export type AgentRequest = { message:string; projectId?:string; sessionId?:string; permissionLevel?:PermissionLevel; approvalToken?:string };
+export type CoreAction = any;
+export type CoreObservation = any;
+export type AgentExecution = any;
+export type ApprovalRequest = any;
+export type AgentSession = any;
+export type AgentResponse = any;
