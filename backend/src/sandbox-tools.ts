@@ -3,11 +3,13 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { createSandboxWorkspace } from './sandbox-core.js';
 
-const allowed = new Set(['npm', 'npx', 'tsc', 'gradle']);
+const allowed = new Set(['npm', 'npx', 'tsc', 'gradle', 'git']);
 
 function validateCommand(command: string, args: string[]): void {
   if (!allowed.has(command)) throw new Error('الأمر غير مسموح داخل Sandbox.');
   const first = args[0] ?? '';
+  if (command === 'git' && !['status','diff','clone','checkout','branch'].includes(first)) throw new Error('أمر Git غير مسموح داخل Sandbox.');
+  if (command === 'git' && ['clone'].includes(first)) { const url=args[1]??''; if(!/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+(?:\.git)?$/.test(url)) throw new Error('يسمح بالـ clone من GitHub HTTPS فقط.'); }
   if (command === 'npm' && !['install', 'ci', 'test', 'run'].includes(first)) {
     throw new Error('يسمح لـ npm فقط بـ install أو ci أو test أو run داخل Sandbox.');
   }
@@ -120,3 +122,7 @@ export async function runCommandInSandbox(
     }));
   });
 }
+
+export async function makeDirectoryInSandbox(projectId:string|undefined,relativePath:string){const workspace=await createSandboxWorkspace(projectId);const target=safePath(workspace.directory,relativePath);await fs.mkdir(target,{recursive:true});return{workspaceId:workspace.id,path:relativePath};}
+export async function renameInSandbox(projectId:string|undefined,from:string,to:string){const workspace=await createSandboxWorkspace(projectId);const source=safePath(workspace.directory,from);const target=safePath(workspace.directory,to);await fs.mkdir(path.dirname(target),{recursive:true});await fs.rename(source,target);return{workspaceId:workspace.id,from,to};}
+export async function searchInSandbox(projectId:string|undefined,needle:string){if(!needle.trim())throw new Error('نص البحث مطلوب.');const workspace=await createSandboxWorkspace(projectId);const matches:string[]=[];async function walk(dir:string){for(const e of await fs.readdir(dir,{withFileTypes:true})){if(['.git','node_modules','.gradle'].includes(e.name))continue;const p=path.join(dir,e.name);if(e.isDirectory())await walk(p);else{try{const s=await fs.readFile(p,'utf8');if(s.includes(needle))matches.push(path.relative(workspace.directory,p).split(path.sep).join('/'));}catch{}}}}await walk(workspace.directory);return{workspaceId:workspace.id,needle,files:matches.slice(0,500)};}
