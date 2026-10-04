@@ -110,3 +110,4 @@ jobs:
         with:
           name: bmz-ai-standalone-apk
           path: mobile/android/app/build/outputs/apk/debugOptimized/app-debugOptimized.apk
+
