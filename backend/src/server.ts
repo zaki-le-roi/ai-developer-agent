@@ -72,7 +72,17 @@ app.get('/health', (_req, res) => {
   res.json({ success: true, service: 'BMZ AI Backend', status: 'ready', port: PORT });
 });
 
-// كل واجهات API بعد نقاط المصادقة العامة تتطلب جلسة مستخدم.\n// الاستثناءات العامة الوحيدة هي OAuth callback وWebhook trigger لأنهما يحتاجان الوصول من GitHub/الخدمات الخارجية.\napp.use('/api', (req, res, next) => {\n  if (req.path === '/github/oauth/callback' || req.path.startsWith('/webhooks/trigger/')) {\n    next();\n    return;\n  }\n  requireAuth(req, res, next);\n});\n\napp.use('/api/projects', requireAuth);
+// كل واجهات API بعد نقاط المصادقة العامة تتطلب جلسة مستخدم.
+// الاستثناءات العامة الوحيدة هي OAuth callback وWebhook trigger لأنهما يحتاجان الوصول من GitHub/الخدمات الخارجية.
+app.use('/api', (req, res, next) => {
+  if (req.path === '/github/oauth/callback' || req.path.startsWith('/webhooks/trigger/')) {
+    next();
+    return;
+  }
+  requireAuth(req, res, next);
+});
+
+app.use('/api/projects', requireAuth);
 app.use('/api/tasks', requireAuth);
 app.use('/api/workflows', requireAuth);
 app.use('/api/agent', requireAuth);
