@@ -37,7 +37,8 @@ const RATE_LIMIT = 60;
 app.use((req, res, next) => {
   const configuredKey = process.env.BMZ_API_KEY?.trim();
   const publicPath=req.path.startsWith('/api/auth/')||req.path==='/api/github/oauth/callback'||req.path.startsWith('/api/webhooks/trigger/');
-  if (configuredKey && !publicPath && req.header('x-bmz-key') !== configuredKey) {
+  const sessionAuthenticated = Boolean(authenticate(req));
+  if (configuredKey && !publicPath && !sessionAuthenticated && req.header('x-bmz-key') !== configuredKey) {
     res.status(401).json({ success: false, error: 'مفتاح BMZ AI غير صالح أو مفقود.' });
     return;
   }
@@ -61,10 +62,10 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '1mb' }));
 
 app.post('/api/auth/register', async (req,res)=>{try{const email=typeof req.body?.email==='string'?req.body.email.trim():'';const password=typeof req.body?.password==='string'?req.body.password:'';if(!/^\S+@\S+\.\S+$/.test(email)){res.status(400).json({success:false,error:'بريد إلكتروني غير صالح.'});return;}res.status(201).json({success:true,user:await register(email,password)})}catch(error){res.status(400).json({success:false,error:error instanceof Error?error.message:'تعذر إنشاء الحساب.'})}});
-app.post('/api/auth/device', (req, res) => {
+app.post('/api/auth/device', async (req, res) => {
   try {
     const deviceId = typeof req.body?.deviceId === 'string' ? req.body.deviceId : '';
-    res.status(201).json({ success: true, ...registerDevice(deviceId) });
+    res.status(201).json({ success: true, ...(await registerDevice(deviceId)) });
   } catch (error) {
     res.status(400).json({ success: false, error: error instanceof Error ? error.message : 'تعذر تفعيل الجهاز.' });
   }
