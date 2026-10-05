@@ -27,7 +27,7 @@ export default function HomeScreen(){
  const [token,setToken]=useState<string|null>(null),[booting,setBooting]=useState(true),[connectionError,setConnectionError]=useState('');
  const [projectId,setProjectId]=useState<string|null>(null),[sessionId,setSessionId]=useState<string|null>(null);
  const [apiBase,setApiBase]=useState(CONFIGURED_API_URL),[repo,setRepo]=useState(''),[projectName,setProjectName]=useState('مشروع BMZ AI');
- const [projects,setProjects]=useState<any[]>([]),[message,setMessage]=useState(''),[sending,setSending]=useState(false);
+ const [projects,setProjects]=useState<any[]>([]),[message,setMessage]=useState(''),[sending,setSending]=useState(false),[startStatus,setStartStatus]=useState('');
  const [files,setFiles]=useState<string[]>([]),[selected,setSelected]=useState(''),[code,setCode]=useState('');
  const [tab,setTab]=useState<Tab>('home'),[logs,setLogs]=useState<Msg[]>([]),[approval,setApproval]=useState<Approval|null>(null);
  const [plan,setPlan]=useState<{goal:string,steps:PlanStep[]}|null>(null),[execution,setExecution]=useState<Execution|null>(null);
@@ -47,7 +47,7 @@ export default function HomeScreen(){
   const timer=setTimeout(()=>controller.abort(),REQUEST_TIMEOUT_MS);
   try{return await fetch(url,{...init,headers,signal:controller.signal});}
   catch(error){
-    if(error instanceof Error && error.name==='AbortError') throw new Error('تعذر الاتصال بالخادم: انتهت مهلة الاتصال (15 ثانية). تأكد من عنوان Backend وأنه يعمل عبر HTTPS.');
+    if(error instanceof Error && error.name==='AbortError') throw new Error('تعذر الاتصال بالخادم: انتهت مهلة الاتصال (20 ثانية). تأكد من عنوان Backend وأنه يعمل عبر HTTPS.');
     if(error instanceof TypeError) throw new Error('تعذر الاتصال بالخادم. تحقق من عنوان Backend واتصال الإنترنت. لا تستخدم عنوانًا محليًا مثل 192.168.x.x في النسخة المثبتة على الهاتف.');
     throw error;
   } finally{clearTimeout(timer);}
@@ -106,8 +106,22 @@ export default function HomeScreen(){
  async function saveFile(){if(!projectId||!selected)return;const r=await apiFetch(base+'/file',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:selected,content:code})});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر الحفظ.');setCommitStatus('تم حفظ الملف في مساحة العمل.');await refreshFiles();}
  async function send(textOverride?:string,approvalToken?:string){
   const text=(textOverride??message).trim();if(!text||sending)return;
-  setSending(true);setTab('logs');setLogs(x=>[...x,{id:Date.now(),role:'user',text},{id:Date.now()+1,role:'agent',text:'جارٍ تجهيز الأمر وإرساله إلى BMZ AI…'}]);
+  setSending(true);
+  setStartStatus('جارٍ إرسال الأمر إلى الخادم…');
+  setLogs(x=>[...x,{id:Date.now(),role:'user',text},{id:Date.now()+1,role:'agent',text:'جارٍ تجهيز الأمر وإرساله إلى BMZ AI…'}]);
   try{
+   const connectionOnly=/^(افحص|تحقق من|اختبر)\s*(الاتصال\s*)?(بالخادم|بالسيرفر|الخادم|السيرفر)\s*$/i.test(text)||/اتصل بالخادم/.test(text);
+   if(connectionOnly){
+    setStartStatus('جارٍ فحص اتصال الخادم…');
+    const r=await apiFetch(apiBase+'/health');
+    const raw=await r.text();let d:any={};try{d=raw?JSON.parse(raw):{};}catch{d={};}
+    if(!r.ok||!d.success)throw new Error(d.error||'الخادم لم يعطِ استجابة ناجحة.');
+    const result='✓ الاتصال بالخادم ناجح. BMZ AI Backend يعمل وحالته: '+(d.status||'جاهز')+'.';
+    setStartStatus(result);
+    setLogs(x=>[...x,{id:Date.now()+2,role:'agent',text:result}]);
+    setMessage('');
+    return;
+   }
    const pid=await ensureProject();
    setLogs(x=>[...x,{id:Date.now()+2,role:'agent',text:'تم تجهيز المشروع. جارٍ إنشاء جلسة التنفيذ…'}]);
    const sid=await ensureSession(pid);
@@ -120,7 +134,7 @@ export default function HomeScreen(){
    const summary=[d.assistantMessage||d.execution?.message||'اكتمل التنفيذ.',...(d.execution?.observations||[]).map((o:any)=>(o.ok?'✓ ':'✗ ')+o.summary)].join('\\n');
    setLogs(x=>[...x,{id:Date.now()+4,role:'agent',text:summary}]);await refreshAll();
   }catch(e){setLogs(x=>[...x,{id:Date.now()+5,role:'agent',text:'خطأ أثناء تنفيذ الأمر: '+(e instanceof Error?e.message:'حدث خطأ غير معروف.')}]);}
-  finally{setSending(false);}
+  finally{setSending(false);if(!startStatus)setStartStatus('');}
  }
  async function runTerminal(){
   if(!projectId||!terminalCommand.trim())return;setTerminalOut('جاري التنفيذ...');
@@ -151,6 +165,7 @@ export default function HomeScreen(){
     <TextInput value={apiBase} onChangeText={updateApiBase} autoCapitalize="none" autoCorrect={false} placeholder="عنوان Backend" placeholderTextColor="#718078" style={s.input}/>
     <TextInput value={message} onChangeText={setMessage} placeholder="اكتب الأمر هنا... مثال: افحص المشروع وأصلح كل الأخطاء ثم اختبره" placeholderTextColor="#718078" style={s.command} multiline/>
     <Pressable onPress={()=>void send()} disabled={!message.trim()||sending} style={s.primary}><Text style={s.primaryText}>{sending?'جارٍ التنفيذ…':'▶ تنفيذ الأمر'}</Text></Pressable>
+    {(sending||startStatus||logs.length>0)&&<View style={s.card}><Text style={s.cardTitle}>حالة التنفيذ</Text>{startStatus?<Text style={s.cardText}>{startStatus}</Text>:null}{logs.slice(-4).map(m=><Text key={m.id} style={s.muted}>{m.role==='user'?'أنت: ':'BMZ AI: '}{m.text}</Text>)}</View>}
     <View style={s.quick}>{quick.map(([t,v])=><Pressable key={t} onPress={()=>setMessage(v)} style={s.chip}><Text style={s.chipText}>{t}</Text></Pressable>)}</View>
     {projects.length>0&&<><Text style={s.section}>مشاريعك</Text>{projects.map(p=><Pressable key={p.id} onPress={()=>selectProject(p.id)} style={s.project}><Text style={s.projectName}>{p.name}</Text><Text style={s.projectRepo}>{p.repositoryUrl||'مشروع محلي'}</Text></Pressable>)}</>}
     <Pressable onPress={()=>setShowNewProject(v=>!v)} style={s.secondary}><Text style={s.secondaryText}>{showNewProject?'إلغاء':'＋ إنشاء مشروع جديد'}</Text></Pressable>
