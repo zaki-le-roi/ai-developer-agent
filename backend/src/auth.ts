@@ -69,3 +69,21 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   res.locals.user = user;
   next();
 }
+export function registerDevice(deviceId: string) {
+  const safeDeviceId = deviceId.trim();
+  if (!safeDeviceId || safeDeviceId.length > 200) throw new Error('معرّف الجهاز غير صالح.');
+  const db = getDb();
+  const email = 'device-' + createHash('sha256').update(safeDeviceId).digest('hex').slice(0, 32) + '@device.bmz.local';
+  const existing = db.prepare('SELECT id,email FROM users WHERE email=?').get(email) as { id: string; email: string } | undefined;
+  if (existing) {
+    const token = randomBytes(32).toString('base64url');
+    db.prepare('INSERT INTO sessions(id,user_id,token_hash,expires_at,created_at) VALUES(?,?,?,?,?)').run(randomUUID(), existing.id, hashToken(token), new Date(Date.now() + 1000 * 60 * 60 * 24 * 365).toISOString(), new Date().toISOString());
+    return { token, user: existing };
+  }
+  const id = randomUUID();
+  db.prepare('INSERT INTO users(id,email,password_hash,created_at) VALUES(?,?,?,?)').run(id, email, hashPassword(randomBytes(32).toString('base64url')), new Date().toISOString());
+  for (const permission of ['READ_PROJECT', 'WRITE_PROJECT', 'RUN_COMMAND']) void grantPermission(id, null, permission);
+  const token = randomBytes(32).toString('base64url');
+  db.prepare('INSERT INTO sessions(id,user_id,token_hash,expires_at,created_at) VALUES(?,?,?,?,?)').run(randomUUID(), id, hashToken(token), new Date(Date.now() + 1000 * 60 * 60 * 24 * 365).toISOString(), new Date().toISOString());
+  return { token, user: { id, email } };
+}
