@@ -20,7 +20,8 @@
             "minSdkVersion": 24,
             "compileSdkVersion": 36,
             "targetSdkVersion": 36,
-            "usesCleartextTraffic": true
+            "usesCleartextTraffic": true,
+            "useLegacyPackaging": true
           }
         }
       ]
