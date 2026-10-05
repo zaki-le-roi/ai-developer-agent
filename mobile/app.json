@@ -8,7 +8,7 @@
     "userInterfaceStyle": "dark",
     "android": {
       "package": "com.bmzai.app",
-      "versionCode": 2,
+      "versionCode": 3,
       "predictiveBackGestureEnabled": false
     },
     "plugins": [
@@ -17,6 +17,9 @@
         "expo-build-properties",
         {
           "android": {
+            "minSdkVersion": 23,
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
             "usesCleartextTraffic": true
           }
         }
