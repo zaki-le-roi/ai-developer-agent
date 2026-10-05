@@ -23,7 +23,7 @@ export function authorizeAction(action: CoreAction, level: PermissionLevel): Exe
   }
   if (action.type === 'github_commit' && level !== 'approval_required') return { allowed: false, reason: 'إرسال التغييرات إلى GitHub يحتاج إلى approval_required.' };
   if (level === 'sandbox' || level === 'approval_required') {
-    return action.type === 'inspect_workspace' || action.type === 'read_file' || action.type === 'write_file' || action.type === 'run_command' || action.type === 'scaffold_app' || action.type === 'build_android' || action.type === 'preview_web' || action.type === 'github_commit' || action.type === 'test'
+    return action.type === 'inspect_workspace' || action.type === 'list_files' || action.type === 'read_file' || action.type === 'write_file' || action.type === 'run_command' || action.type === 'scaffold_app' || action.type === 'build_android' || action.type === 'preview_web' || action.type === 'github_commit' || action.type === 'test'
       ? { allowed: true }
       : { allowed: false, reason: 'الإجراء غير مدعوم في Sandbox.' };
   }
