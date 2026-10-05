@@ -3,7 +3,7 @@ import {Alert,KeyboardAvoidingView,Platform,Pressable,SafeAreaView,ScrollView,St
 import {Linking} from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
-const CONFIGURED_API_URL=(process.env.EXPO_PUBLIC_API_URL??'').trim().replace(/\\/$/,'');
+const CONFIGURED_API_URL=(process.env.EXPO_PUBLIC_API_URL??'').trim().replace(/\/$/,'');
 const REQUEST_TIMEOUT_MS=15000;
 type Tab='home'|'files'|'terminal'|'plan'|'logs'|'preview'|'memory'|'workflows'|'integrations'|'settings';
 type Msg={id:number,role:'user'|'agent',text:string};
@@ -57,7 +57,7 @@ export default function HomeScreen(){
       SecureStore.getItemAsync('bmz_api_base'),
       SecureStore.getItemAsync('bmz_device_id')
     ]);
-    const endpoint=(savedApiBase||CONFIGURED_API_URL).trim().replace(/\\/$/,'');
+    const endpoint=(savedApiBase||CONFIGURED_API_URL).trim().replace(/\/$/,'');
     const deviceId=savedDeviceId||('android-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,14));
     if(!savedDeviceId)await SecureStore.setItemAsync('bmz_device_id',deviceId);
     if(!endpoint)throw new Error('لم يتم ضبط عنوان Backend. استخدم عنوانًا عامًا عبر HTTPS في إعدادات بناء التطبيق.');
@@ -125,7 +125,7 @@ export default function HomeScreen(){
  const nav:[Tab,string][]=[['home','الرئيسية'],['files','الملفات'],['terminal','Terminal'],['plan','الخطة'],['logs','السجل'],['preview','المعاينة'],['memory','الذاكرة'],['workflows','Workflow'],['integrations','التكاملات'],['settings','الإعدادات']];
  const selectedContent=selected?code:'';
  if(booting)return <SafeAreaView style={s.safe}><View style={s.auth}><Text style={s.brand}>BMZ AI</Text><Text style={s.hero}>جاري تشغيل BMZ AI</Text><Text style={s.heroSub}>يتم تفعيل هذا الهاتف تلقائيًا. لا يوجد تسجيل دخول أو إنشاء حساب.</Text></View></SafeAreaView>;
- if(!token)return <SafeAreaView style={s.safe}><ScrollView contentContainerStyle={s.auth}><Text style={s.brand}>BMZ AI</Text><Text style={s.hero}>تعذر الاتصال بالخادم</Text><Text style={s.heroSub}>{connectionError||'تحقق من عنوان Backend واتصال الإنترنت.'}</Text><TextInput style={s.input} value={apiBase} onChangeText={updateApiBase} placeholder="عنوان Backend عبر HTTPS" placeholderTextColor="#71857D" autoCapitalize="none" autoCorrect={false} keyboardType="url"/><Pressable style={s.primary} onPress={()=>{setBooting(true);setConnectionError('');void (async()=>{try{const deviceId=(await SecureStore.getItemAsync('bmz_device_id'))||('android-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,14));await SecureStore.setItemAsync('bmz_device_id',deviceId);await activateDevice(apiBase.trim().replace(/\\/$/,''),deviceId);}catch(e){setConnectionError(e instanceof Error?e.message:'تعذر الاتصال بالخادم.')}finally{setBooting(false);}})();}}><Text style={s.primaryText}>إعادة الاتصال</Text></Pressable></ScrollView></SafeAreaView>;
+ if(!token)return <SafeAreaView style={s.safe}><ScrollView contentContainerStyle={s.auth}><Text style={s.brand}>BMZ AI</Text><Text style={s.hero}>تعذر الاتصال بالخادم</Text><Text style={s.heroSub}>{connectionError||'تحقق من عنوان Backend واتصال الإنترنت.'}</Text><TextInput style={s.input} value={apiBase} onChangeText={updateApiBase} placeholder="عنوان Backend عبر HTTPS" placeholderTextColor="#71857D" autoCapitalize="none" autoCorrect={false} keyboardType="url"/><Pressable style={s.primary} onPress={()=>{setBooting(true);setConnectionError('');void (async()=>{try{const deviceId=(await SecureStore.getItemAsync('bmz_device_id'))||('android-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,14));await SecureStore.setItemAsync('bmz_device_id',deviceId);await activateDevice(apiBase.trim().replace(/\/$/,''),deviceId);}catch(e){setConnectionError(e instanceof Error?e.message:'تعذر الاتصال بالخادم.')}finally{setBooting(false);}})();}}><Text style={s.primaryText}>إعادة الاتصال</Text></Pressable></ScrollView></SafeAreaView>;
  return <SafeAreaView style={s.safe}><StatusBar barStyle="light-content" backgroundColor="#07110D"/><KeyboardAvoidingView style={s.fill} behavior={Platform.OS==='ios'?'padding':undefined}>
   <View style={s.top}><View><Text style={s.brand}>BMZ AI</Text><Text style={s.subtitle}>وكيل تطوير حقيقي — خطط، نفّذ، اختبر، أصلح</Text></View><View style={s.statusDot}/></View>
   {!projectId?<ScrollView contentContainerStyle={s.start}>
