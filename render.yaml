@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: bmz-ai-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "4000"
+      - key: BMZ_DATA_ROOT
+        value: /data
+      - key: BMZ_SANDBOX_ROOT
+        value: /data/sandbox/workspaces
+      - key: BMZ_EMBED_WORKER
+        value: "true"
+      - key: BMZ_MASTER_KEY
+        generateValue: true
+      - key: BMZ_API_KEY
+        generateValue: true
+    disk:
+      name: bmz-ai-data
+      mountPath: /data
+      sizeGB: 10
