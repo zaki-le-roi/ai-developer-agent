@@ -59,9 +59,8 @@ jobs:
           name: bmz-ai-debug-apk
           path: ${{ steps.project.outputs.dir }}/app/build/outputs/apk/debug/app-debug.apk
 
-
   mobile-android:
-    name: Build BMZ AI mobile APK
+    name: Build BMZ AI standalone Android APK
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -78,9 +77,15 @@ jobs:
           distribution: temurin
           java-version: '17'
       - name: Install mobile dependencies
-        run: npm install
+        run: npm install --no-audit --no-fund
+      - name: Validate Expo project
+        run: npx expo-doctor
+      - name: Validate TypeScript
+        run: npx tsc --noEmit
       - name: Generate native Android project
-        run: CI=1 npx expo prebuild --platform android
+        run: CI=1 npx expo prebuild --platform android --clean
+      - name: Validate production JavaScript bundle
+        run: npx expo export --platform android --output-dir .expo-export
       - name: Install Android SDK
         working-directory: mobile
         env:
@@ -89,25 +94,50 @@ jobs:
           SDKMANAGER="$(find "$ANDROID_HOME" -type f -name sdkmanager -print -quit)"
           test -n "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;35.0.0"
       - name: Cache Gradle
         uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: bmz-ai-gradle-${{ runner.os }}-${{ hashFiles('mobile/android/**/*.gradle*', 'mobile/android/**/gradle-wrapper.properties') }}
+          key: bmz-ai-gradle-release-${{ runner.os }}-${{ hashFiles('mobile/package.json', 'mobile/android/**/*.gradle*', 'mobile/android/**/gradle-wrapper.properties') }}
           restore-keys: |
-            bmz-ai-gradle-${{ runner.os }}-
-      - name: Build standalone BMZ AI APK
+            bmz-ai-gradle-release-${{ runner.os }}-
+      - name: Configure test signing for installable release APK
+        working-directory: mobile
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path("android/app/build.gradle")
+          s = p.read_text()
+          marker = "buildTypes {"
+          if marker not in s:
+              raise SystemExit("buildTypes block not found")
+          head, tail = s.split(marker, 1)
+          release = "release {"
+          if release not in tail:
+              raise SystemExit("release build type not found")
+          tail = tail.replace(release, 'release {\n            // Test-only signing so the CI APK can be installed directly.\n            signingConfig signingConfigs.debug', 1)
+          p.write_text(head + marker + tail)
+      - name: Build standalone signed release APK
         working-directory: mobile/android
         timeout-minutes: 25
         env:
           GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx4g\ -XX:MaxMetaspaceSize=1g
-        run: chmod +x gradlew && ./gradlew --no-daemon --max-workers=2 assembleDebugOptimized --stacktrace --console=plain
+        run: chmod +x gradlew && ./gradlew --no-daemon --max-workers=2 :app:assembleRelease --stacktrace --console=plain
+      - name: Verify APK is standalone and signed
+        working-directory: mobile
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
+        run: |
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          test -f "$APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
+          "$APKSIGNER" verify --verbose "$APK"
+          unzip -l "$APK" | grep -Eq 'assets/index.android.bundle|assets/index.android.bundle.hbc|assets/.+\.hbc'
       - name: Upload standalone BMZ AI APK
         uses: actions/upload-artifact@v4
         with:
           name: bmz-ai-standalone-apk
-          path: mobile/android/app/build/outputs/apk/debugOptimized/app-debugOptimized.apk
-
+          path: mobile/android/app/build/outputs/apk/release/app-release.apk
