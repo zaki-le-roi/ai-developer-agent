@@ -84,7 +84,7 @@ jobs:
           java-version: '17'
       - name: Configure mobile API endpoint
         env:
-          API_URL: ${{ inputs.api_url }}
+          API_URL: ${{ inputs.api_url || vars.BMZ_API_URL }}
         run: |
           if [ -n "$API_URL" ]; then
             case "$API_URL" in
@@ -93,7 +93,8 @@ jobs:
             esac
             printf 'EXPO_PUBLIC_API_URL=%s\\n' "$API_URL" > .env.production.local
           else
-            printf 'EXPO_PUBLIC_API_URL=\\n' > .env.production.local
+            echo "::error::A public HTTPS backend URL is required. Set the BMZ_API_URL repository variable or provide api_url when starting the workflow."
+            exit 1
           fi
       - name: Install mobile dependencies
         run: npm install --no-audit --no-fund
