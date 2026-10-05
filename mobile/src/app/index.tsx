@@ -3,7 +3,8 @@ import {Alert,KeyboardAvoidingView,Platform,Pressable,SafeAreaView,ScrollView,St
 import {Linking} from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
-const API_URL=process.env.EXPO_PUBLIC_API_URL??'http://192.168.1.119:4000';
+const CONFIGURED_API_URL=(process.env.EXPO_PUBLIC_API_URL??'').trim().replace(/\\/$/,'');
+const REQUEST_TIMEOUT_MS=15000;
 type Tab='home'|'files'|'terminal'|'plan'|'logs'|'preview'|'memory'|'workflows'|'integrations'|'settings';
 type Msg={id:number,role:'user'|'agent',text:string};
 type Approval={id:string,reason:string};
@@ -13,7 +14,7 @@ type Execution={status:string,message:string,iterations:number,observations:any[
 export default function HomeScreen(){
  const [token,setToken]=useState<string|null>(null),[authMode,setAuthMode]=useState<'login'|'register'>('login'),[authEmail,setAuthEmail]=useState(''),[authPassword,setAuthPassword]=useState(''),[authBusy,setAuthBusy]=useState(false),[authError,setAuthError]=useState('');
  const [projectId,setProjectId]=useState<string|null>(null),[sessionId,setSessionId]=useState<string|null>(null);
- const [apiBase,setApiBase]=useState(API_URL),[repo,setRepo]=useState(''),[projectName,setProjectName]=useState('مشروع BMZ AI');
+ const [apiBase,setApiBase]=useState(CONFIGURED_API_URL),[repo,setRepo]=useState(''),[projectName,setProjectName]=useState('مشروع BMZ AI');
  const [projects,setProjects]=useState<any[]>([]),[message,setMessage]=useState(''),[sending,setSending]=useState(false);
  const [files,setFiles]=useState<string[]>([]),[selected,setSelected]=useState(''),[code,setCode]=useState('');
  const [tab,setTab]=useState<Tab>('home'),[logs,setLogs]=useState<Msg[]>([]),[approval,setApproval]=useState<Approval|null>(null);
@@ -27,8 +28,30 @@ export default function HomeScreen(){
  const base=projectId?apiBase+'/api/projects/'+projectId:'';
 
  function updateApiBase(value:string){setApiBase(value);void SecureStore.setItemAsync('bmz_api_base',value.trim());}
- async function apiFetch(url:string,init?:RequestInit){const headers=new Headers(init?.headers);if(token)headers.set('Authorization','Bearer '+token);return fetch(url,{...init,headers});}
- async function authenticate(){setAuthBusy(true);setAuthError('');try{const r=await fetch(apiBase+'/api/auth/'+authMode,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:authEmail.trim(),password:authPassword})});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر المصادقة.');setToken(d.token);void SecureStore.setItemAsync('bmz_auth_token',d.token);setAuthPassword('');}catch(e){setAuthError(e instanceof Error?e.message:'تعذر المصادقة.')}finally{setAuthBusy(false)}}
+ async function apiFetch(url:string,init?:RequestInit){
+  const headers=new Headers(init?.headers);
+  if(token)headers.set('Authorization','Bearer '+token);
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),REQUEST_TIMEOUT_MS);
+  try{return await fetch(url,{...init,headers,signal:controller.signal});}
+  catch(error){
+    if(error instanceof Error && error.name==='AbortError') throw new Error('تعذر الاتصال بالخادم: انتهت مهلة الاتصال (15 ثانية). تأكد من عنوان Backend وأنه يعمل عبر HTTPS.');
+    if(error instanceof TypeError) throw new Error('تعذر الاتصال بالخادم. تحقق من عنوان Backend واتصال الإنترنت. لا تستخدم عنوانًا محليًا مثل 192.168.x.x في النسخة المثبتة على الهاتف.');
+    throw error;
+  } finally{clearTimeout(timer);}
+ }
+ async function authenticate(){
+  setAuthBusy(true);setAuthError('');
+  try{
+    const endpoint=apiBase.trim().replace(/\\/$/,'');
+    if(!endpoint) throw new Error('أدخل عنوان Backend أولًا. يجب أن يكون عنوانًا عامًا يعمل عبر HTTPS، وليس عنوان الكمبيوتر المحلي.');
+    const r=await apiFetch(endpoint+'/api/auth/'+authMode,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:authEmail.trim(),password:authPassword})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok)throw new Error(d.error||'تعذر المصادقة.');
+    if(!d.token)throw new Error('الخادم استجاب دون جلسة دخول صالحة.');
+    setToken(d.token);void SecureStore.setItemAsync('bmz_auth_token',d.token);void SecureStore.setItemAsync('bmz_api_base',endpoint);setApiBase(endpoint);setAuthPassword('');
+  }catch(e){setAuthError(e instanceof Error?e.message:'تعذر المصادقة.')}finally{setAuthBusy(false)}
+ }
  useEffect(()=>{void Promise.all([SecureStore.getItemAsync('bmz_auth_token'),SecureStore.getItemAsync('bmz_api_base')]).then(([savedToken,savedApiBase])=>{if(savedToken)setToken(savedToken);if(savedApiBase)setApiBase(savedApiBase);});},[]);
  useEffect(()=>{if(token){void SecureStore.setItemAsync('bmz_auth_token',token);void loadProjects();}},[token]);
  useEffect(()=>{if(!projectId)return;void refreshAll();const timer=setInterval(()=>{void refreshAll();},3000);return()=>clearInterval(timer);},[projectId,token]);
@@ -86,7 +109,7 @@ export default function HomeScreen(){
  ];
  const nav:[Tab,string][]=[['home','الرئيسية'],['files','الملفات'],['terminal','Terminal'],['plan','الخطة'],['logs','السجل'],['preview','المعاينة'],['memory','الذاكرة'],['workflows','Workflow'],['integrations','التكاملات'],['settings','الإعدادات']];
  const selectedContent=selected?code:'';
- if(!token)return <SafeAreaView style={s.safe}><KeyboardAvoidingView style={s.fill} behavior={Platform.OS==='ios'?'padding':undefined}><ScrollView contentContainerStyle={s.auth}><Text style={s.brand}>BMZ AI</Text><Text style={s.hero}>{authMode==='login'?'تسجيل الدخول':'إنشاء حساب'}</Text><Text style={s.heroSub}>الحساب يحمي مشاريعك وعمليات الوكيل من الوصول غير المصرح به.</Text><TextInput style={s.input} value={authEmail} onChangeText={setAuthEmail} placeholder="البريد الإلكتروني" placeholderTextColor="#71857D" autoCapitalize="none" keyboardType="email-address"/><TextInput style={s.input} value={authPassword} onChangeText={setAuthPassword} placeholder="كلمة المرور" placeholderTextColor="#71857D" secureTextEntry/><Pressable style={s.primary} onPress={()=>void authenticate()} disabled={authBusy}><Text style={s.primaryText}>{authBusy?'جاري التنفيذ...':authMode==='login'?'دخول':'إنشاء الحساب'}</Text></Pressable>{authError?<Text style={s.error}>{authError}</Text>:null}<Pressable onPress={()=>setAuthMode(authMode==='login'?'register':'login')}><Text style={s.link}>{authMode==='login'?'ليس لديك حساب؟ إنشاء حساب':'لديك حساب؟ تسجيل الدخول'}</Text></Pressable></ScrollView></KeyboardAvoidingView></SafeAreaView>;
+ if(!token)return <SafeAreaView style={s.safe}><KeyboardAvoidingView style={s.fill} behavior={Platform.OS==='ios'?'padding':undefined}><ScrollView contentContainerStyle={s.auth}><Text style={s.brand}>BMZ AI</Text><Text style={s.hero}>{authMode==='login'?'تسجيل الدخول':'إنشاء حساب'}</Text><Text style={s.heroSub}>الحساب يحمي مشاريعك وعمليات الوكيل من الوصول غير المصرح به.</Text><TextInput style={s.input} value={apiBase} onChangeText={updateApiBase} placeholder="عنوان Backend (HTTPS)" placeholderTextColor="#71857D" autoCapitalize="none" autoCorrect={false} keyboardType="url"/><Text style={s.heroSub}>مثال: https://api.example.com</Text><TextInput style={s.input} value={authEmail} onChangeText={setAuthEmail} placeholder="البريد الإلكتروني" placeholderTextColor="#71857D" autoCapitalize="none" keyboardType="email-address"/><TextInput style={s.input} value={authPassword} onChangeText={setAuthPassword} placeholder="كلمة المرور" placeholderTextColor="#71857D" secureTextEntry/><Pressable style={s.primary} onPress={()=>void authenticate()} disabled={authBusy}><Text style={s.primaryText}>{authBusy?'جاري التنفيذ...':authMode==='login'?'دخول':'إنشاء الحساب'}</Text></Pressable>{authError?<Text style={s.error}>{authError}</Text>:null}<Pressable onPress={()=>setAuthMode(authMode==='login'?'register':'login')}><Text style={s.link}>{authMode==='login'?'ليس لديك حساب؟ إنشاء حساب':'لديك حساب؟ تسجيل الدخول'}</Text></Pressable></ScrollView></KeyboardAvoidingView></SafeAreaView>;
  return <SafeAreaView style={s.safe}><StatusBar barStyle="light-content" backgroundColor="#07110D"/><KeyboardAvoidingView style={s.fill} behavior={Platform.OS==='ios'?'padding':undefined}>
   <View style={s.top}><View><Text style={s.brand}>BMZ AI</Text><Text style={s.subtitle}>وكيل تطوير حقيقي — خطط، نفّذ، اختبر، أصلح</Text></View><View style={s.statusDot}/></View>
   {!projectId?<ScrollView contentContainerStyle={s.start}>
