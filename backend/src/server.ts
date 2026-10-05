@@ -16,7 +16,7 @@ import { enqueueAgentTask, cancelTask, runTask, pauseTask, resumeTask, retryTask
 import { listAllTasks } from './task-store.js';
 import { eventsSse } from './realtime.js';
 import { runWorkflow, type Workflow } from './workflow-engine.js';
-import { register, login, logout, authenticate, requireAuth } from './auth.js';
+import { register, registerDevice, login, logout, authenticate, requireAuth } from './auth.js';
 import { grantPermission, revokePermission, listPermissions, hasPermission } from './permission-store.js';
 import { browserOpen, browserRead, browserClick, browserFill, browserClose } from './browser-service.js';
 import { saveTelegramBot, telegramSend } from './telegram-integration.js';
@@ -61,6 +61,14 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '1mb' }));
 
 app.post('/api/auth/register', async (req,res)=>{try{const email=typeof req.body?.email==='string'?req.body.email.trim():'';const password=typeof req.body?.password==='string'?req.body.password:'';if(!/^\S+@\S+\.\S+$/.test(email)){res.status(400).json({success:false,error:'بريد إلكتروني غير صالح.'});return;}res.status(201).json({success:true,user:await register(email,password)})}catch(error){res.status(400).json({success:false,error:error instanceof Error?error.message:'تعذر إنشاء الحساب.'})}});
+app.post('/api/auth/device', (req, res) => {
+  try {
+    const deviceId = typeof req.body?.deviceId === 'string' ? req.body.deviceId : '';
+    res.status(201).json({ success: true, ...registerDevice(deviceId) });
+  } catch (error) {
+    res.status(400).json({ success: false, error: error instanceof Error ? error.message : 'تعذر تفعيل الجهاز.' });
+  }
+});
 app.post('/api/auth/login', (req,res)=>{try{const email=typeof req.body?.email==='string'?req.body.email.trim():'';const password=typeof req.body?.password==='string'?req.body.password:'';res.json({success:true,...login(email,password)})}catch(error){res.status(401).json({success:false,error:error instanceof Error?error.message:'تعذر تسجيل الدخول.'})}});
 app.post('/api/auth/logout',(req,res)=>{res.json({success:logout(req)})});
 app.get('/api/auth/me',(req,res)=>{const user=authenticate(req);if(!user){res.status(401).json({success:false,error:'غير مسجل الدخول.'});return}res.json({success:true,user:{id:user.id,email:user.email}})});
