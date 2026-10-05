@@ -1,4 +1,4 @@
-import React,{useEffect,useMemo,useState} from 'react';
+import React,{useEffect,useState} from 'react';
 import {Alert,KeyboardAvoidingView,Platform,Pressable,SafeAreaView,ScrollView,StatusBar,StyleSheet,Text,TextInput,View} from 'react-native';
 import {Linking} from 'react-native';
 import * as SecureStore from 'expo-secure-store';
@@ -12,7 +12,7 @@ type PlanStep={id:string,title:string,status:string};
 type Execution={status:string,message:string,iterations:number,observations:any[]};
 
 export default function HomeScreen(){
- const [token,setToken]=useState<string|null>(null),[authMode,setAuthMode]=useState<'login'|'register'>('login'),[authEmail,setAuthEmail]=useState(''),[authPassword,setAuthPassword]=useState(''),[authBusy,setAuthBusy]=useState(false),[authError,setAuthError]=useState('');
+ const [token,setToken]=useState<string|null>(null),[booting,setBooting]=useState(true),[connectionError,setConnectionError]=useState('');
  const [projectId,setProjectId]=useState<string|null>(null),[sessionId,setSessionId]=useState<string|null>(null);
  const [apiBase,setApiBase]=useState(CONFIGURED_API_URL),[repo,setRepo]=useState(''),[projectName,setProjectName]=useState('مشروع BMZ AI');
  const [projects,setProjects]=useState<any[]>([]),[message,setMessage]=useState(''),[sending,setSending]=useState(false);
@@ -40,19 +40,34 @@ export default function HomeScreen(){
     throw error;
   } finally{clearTimeout(timer);}
  }
- async function authenticate(){
-  setAuthBusy(true);setAuthError('');
-  try{
-    const endpoint=apiBase.trim().replace(/\\/$/,'');
-    if(!endpoint) throw new Error('أدخل عنوان Backend أولًا. يجب أن يكون عنوانًا عامًا يعمل عبر HTTPS، وليس عنوان الكمبيوتر المحلي.');
-    const r=await apiFetch(endpoint+'/api/auth/'+authMode,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:authEmail.trim(),password:authPassword})});
-    const d=await r.json().catch(()=>({}));
-    if(!r.ok)throw new Error(d.error||'تعذر المصادقة.');
-    if(!d.token)throw new Error('الخادم استجاب دون جلسة دخول صالحة.');
-    setToken(d.token);void SecureStore.setItemAsync('bmz_auth_token',d.token);void SecureStore.setItemAsync('bmz_api_base',endpoint);setApiBase(endpoint);setAuthPassword('');
-  }catch(e){setAuthError(e instanceof Error?e.message:'تعذر المصادقة.')}finally{setAuthBusy(false)}
- }
- useEffect(()=>{void Promise.all([SecureStore.getItemAsync('bmz_auth_token'),SecureStore.getItemAsync('bmz_api_base')]).then(([savedToken,savedApiBase])=>{if(savedToken)setToken(savedToken);if(savedApiBase)setApiBase(savedApiBase);});},[]);
+ async function activateDevice(endpoint:string,deviceId:string){
+  const r=await apiFetch(endpoint+'/api/auth/device',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deviceId})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok||!d.token)throw new Error(d.error||'تعذر تفعيل هذا الجهاز.');
+  await SecureStore.setItemAsync('bmz_auth_token',d.token);
+  await SecureStore.setItemAsync('bmz_api_base',endpoint);
+  setToken(d.token);
+}
+ useEffect(()=>{
+  void (async()=>{
+   setBooting(true);setConnectionError('');
+   try{
+    const [savedToken,savedApiBase,savedDeviceId]=await Promise.all([
+      SecureStore.getItemAsync('bmz_auth_token'),
+      SecureStore.getItemAsync('bmz_api_base'),
+      SecureStore.getItemAsync('bmz_device_id')
+    ]);
+    const endpoint=(savedApiBase||CONFIGURED_API_URL).trim().replace(/\\/$/,'');
+    const deviceId=savedDeviceId||('android-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,14));
+    if(!savedDeviceId)await SecureStore.setItemAsync('bmz_device_id',deviceId);
+    if(!endpoint)throw new Error('لم يتم ضبط عنوان Backend. استخدم عنوانًا عامًا عبر HTTPS في إعدادات بناء التطبيق.');
+    setApiBase(endpoint);
+    if(savedToken){setToken(savedToken);return;}
+    await activateDevice(endpoint,deviceId);
+   }catch(e){setConnectionError(e instanceof Error?e.message:'تعذر الاتصال بالخادم.')}
+   finally{setBooting(false);}
+  })();
+ },[]);
  useEffect(()=>{if(token){void SecureStore.setItemAsync('bmz_auth_token',token);void loadProjects();}},[token]);
  useEffect(()=>{if(!projectId)return;void refreshAll();const timer=setInterval(()=>{void refreshAll();},3000);return()=>clearInterval(timer);},[projectId,token]);
 
@@ -109,7 +124,8 @@ export default function HomeScreen(){
  ];
  const nav:[Tab,string][]=[['home','الرئيسية'],['files','الملفات'],['terminal','Terminal'],['plan','الخطة'],['logs','السجل'],['preview','المعاينة'],['memory','الذاكرة'],['workflows','Workflow'],['integrations','التكاملات'],['settings','الإعدادات']];
  const selectedContent=selected?code:'';
- if(!token)return <SafeAreaView style={s.safe}><KeyboardAvoidingView style={s.fill} behavior={Platform.OS==='ios'?'padding':undefined}><ScrollView contentContainerStyle={s.auth}><Text style={s.brand}>BMZ AI</Text><Text style={s.hero}>{authMode==='login'?'تسجيل الدخول':'إنشاء حساب'}</Text><Text style={s.heroSub}>الحساب يحمي مشاريعك وعمليات الوكيل من الوصول غير المصرح به.</Text><TextInput style={s.input} value={apiBase} onChangeText={updateApiBase} placeholder="عنوان Backend (HTTPS)" placeholderTextColor="#71857D" autoCapitalize="none" autoCorrect={false} keyboardType="url"/><Text style={s.heroSub}>مثال: https://api.example.com</Text><TextInput style={s.input} value={authEmail} onChangeText={setAuthEmail} placeholder="البريد الإلكتروني" placeholderTextColor="#71857D" autoCapitalize="none" keyboardType="email-address"/><TextInput style={s.input} value={authPassword} onChangeText={setAuthPassword} placeholder="كلمة المرور" placeholderTextColor="#71857D" secureTextEntry/><Pressable style={s.primary} onPress={()=>void authenticate()} disabled={authBusy}><Text style={s.primaryText}>{authBusy?'جاري التنفيذ...':authMode==='login'?'دخول':'إنشاء الحساب'}</Text></Pressable>{authError?<Text style={s.error}>{authError}</Text>:null}<Pressable onPress={()=>setAuthMode(authMode==='login'?'register':'login')}><Text style={s.link}>{authMode==='login'?'ليس لديك حساب؟ إنشاء حساب':'لديك حساب؟ تسجيل الدخول'}</Text></Pressable></ScrollView></KeyboardAvoidingView></SafeAreaView>;
+ if(booting)return <SafeAreaView style={s.safe}><View style={s.auth}><Text style={s.brand}>BMZ AI</Text><Text style={s.hero}>جاري تشغيل BMZ AI</Text><Text style={s.heroSub}>يتم تفعيل هذا الهاتف تلقائيًا. لا يوجد تسجيل دخول أو إنشاء حساب.</Text></View></SafeAreaView>;
+ if(!token)return <SafeAreaView style={s.safe}><ScrollView contentContainerStyle={s.auth}><Text style={s.brand}>BMZ AI</Text><Text style={s.hero}>تعذر الاتصال بالخادم</Text><Text style={s.heroSub}>{connectionError||'تحقق من عنوان Backend واتصال الإنترنت.'}</Text><TextInput style={s.input} value={apiBase} onChangeText={updateApiBase} placeholder="عنوان Backend عبر HTTPS" placeholderTextColor="#71857D" autoCapitalize="none" autoCorrect={false} keyboardType="url"/><Pressable style={s.primary} onPress={()=>{setBooting(true);setConnectionError('');void (async()=>{try{const deviceId=(await SecureStore.getItemAsync('bmz_device_id'))||('android-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,14));await SecureStore.setItemAsync('bmz_device_id',deviceId);await activateDevice(apiBase.trim().replace(/\\/$/,''),deviceId);}catch(e){setConnectionError(e instanceof Error?e.message:'تعذر الاتصال بالخادم.')}finally{setBooting(false);}})();}}><Text style={s.primaryText}>إعادة الاتصال</Text></Pressable></ScrollView></SafeAreaView>;
  return <SafeAreaView style={s.safe}><StatusBar barStyle="light-content" backgroundColor="#07110D"/><KeyboardAvoidingView style={s.fill} behavior={Platform.OS==='ios'?'padding':undefined}>
   <View style={s.top}><View><Text style={s.brand}>BMZ AI</Text><Text style={s.subtitle}>وكيل تطوير حقيقي — خطط، نفّذ، اختبر، أصلح</Text></View><View style={s.statusDot}/></View>
   {!projectId?<ScrollView contentContainerStyle={s.start}>
