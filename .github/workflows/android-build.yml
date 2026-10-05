@@ -8,10 +8,10 @@ on:
   workflow_dispatch:
     inputs:
       api_url:
-        description: "Public HTTPS BMZ AI backend URL (required for a fully connected APK)"
+        description: "Public HTTPS BMZ AI backend URL"
         required: false
         type: string
-        default: ""
+        default: "https://bmz-ai-backend.onrender.com"
   repository_dispatch:
     types: [bmz_android_build]
   push:
@@ -84,18 +84,13 @@ jobs:
           java-version: '17'
       - name: Configure mobile API endpoint
         env:
-          API_URL: ${{ inputs.api_url || vars.BMZ_API_URL }}
+          API_URL: ${{ inputs.api_url || vars.BMZ_API_URL || 'https://bmz-ai-backend.onrender.com' }}
         run: |
-          if [ -n "$API_URL" ]; then
-            case "$API_URL" in
-              https://*) ;;
-              *) echo "api_url must use HTTPS"; exit 1 ;;
-            esac
-            printf 'EXPO_PUBLIC_API_URL=%s\\n' "$API_URL" > .env.production.local
-          else
-            echo "::error::A public HTTPS backend URL is required. Set the BMZ_API_URL repository variable or provide api_url when starting the workflow."
-            exit 1
-          fi
+          case "$API_URL" in
+            https://*) ;;
+            *) echo "api_url must use HTTPS"; exit 1 ;;
+          esac
+          printf 'EXPO_PUBLIC_API_URL=%s\n' "$API_URL" > .env.production.local
       - name: Install mobile dependencies
         run: npm install --no-audit --no-fund
       - name: Diagnose Expo project
