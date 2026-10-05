@@ -41,16 +41,34 @@ export default function HomeScreen(){
 
  function updateApiBase(value:string){setApiBase(value);try{const normalized=normalizeApiUrl(value);if(normalized)void SecureStore.setItemAsync('bmz_api_base',normalized);}catch{}}
  async function apiFetch(url:string,init?:RequestInit){
-  const headers=new Headers(init?.headers);
-  if(token)headers.set('Authorization','Bearer '+token);
-  const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),REQUEST_TIMEOUT_MS);
-  try{return await fetch(url,{...init,headers,signal:controller.signal});}
-  catch(error){
-    if(error instanceof Error && error.name==='AbortError') throw new Error('تعذر الاتصال بالخادم: انتهت مهلة الاتصال (20 ثانية). تأكد من عنوان Backend وأنه يعمل عبر HTTPS.');
-    if(error instanceof TypeError) throw new Error('تعذر الاتصال بالخادم. تحقق من عنوان Backend واتصال الإنترنت. لا تستخدم عنوانًا محليًا مثل 192.168.x.x في النسخة المثبتة على الهاتف.');
-    throw error;
-  } finally{clearTimeout(timer);}
+  const makeRequest=async(currentToken:string|null)=>{
+    const headers=new Headers(init?.headers);
+    if(currentToken)headers.set('Authorization','Bearer '+currentToken);
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),REQUEST_TIMEOUT_MS);
+    try{return await fetch(url,{...init,headers,signal:controller.signal});}
+    catch(error){
+      if(error instanceof Error && error.name==='AbortError') throw new Error('تعذر الاتصال بالخادم: انتهت مهلة الاتصال (20 ثانية). تأكد من عنوان Backend وأنه يعمل عبر HTTPS.');
+      if(error instanceof TypeError) throw new Error('تعذر الاتصال بالخادم. تحقق من عنوان Backend واتصال الإنترنت. لا تستخدم عنوانًا محليًا مثل 192.168.x.x في النسخة المثبتة على الهاتف.');
+      throw error;
+    } finally{clearTimeout(timer);}
+  };
+  let response=await makeRequest(token);
+  if(response.status===401 && !url.includes('/api/auth/device')){
+    const deviceId=(await SecureStore.getItemAsync('bmz_device_id'))||('android-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,14));
+    await SecureStore.setItemAsync('bmz_device_id',deviceId);
+    const authResponse=await makeRequest(null);
+    if(authResponse.status===401 || !url.includes('/api/auth/device')){
+      const r=await fetch(normalizeApiUrl(apiBase)+'/api/auth/device',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deviceId})});
+      const d=await r.json().catch(()=>({}));
+      if(r.ok&&d.token){
+        await SecureStore.setItemAsync('bmz_auth_token',d.token);
+        setToken(d.token);
+        response=await makeRequest(d.token);
+      }
+    }
+  }
+  return response;
  }
  async function activateDevice(endpoint:string,deviceId:string){
   const r=await apiFetch(endpoint+'/api/auth/device',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deviceId})});
