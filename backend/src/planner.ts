@@ -10,10 +10,10 @@ function fallbackPlan(goal: string): AgentPlan {
   ];
   if (inspect) {
     steps.push({
-      id: 'read-task',
-      title: 'قراءة الملفات المطلوبة',
+      id: 'list-files',
+      title: 'قراءة بنية المشروع',
       status: 'pending',
-      action: { type: 'read_file', path: '.bmz-task.txt' },
+      action: { type: 'list_files' },
     });
   } else {
     steps.push({
