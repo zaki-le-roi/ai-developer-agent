@@ -7,10 +7,20 @@
     "scheme": "bmzai",
     "userInterfaceStyle": "dark",
     "android": {
+      "package": "com.bmzai.app",
+      "versionCode": 1,
       "predictiveBackGestureEnabled": false
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
