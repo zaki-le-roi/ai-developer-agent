@@ -6,6 +6,12 @@ name: BMZ AI Android Build
 
 on:
   workflow_dispatch:
+    inputs:
+      api_url:
+        description: "Public HTTPS BMZ AI backend URL (required for a fully connected APK)"
+        required: false
+        type: string
+        default: ""
   repository_dispatch:
     types: [bmz_android_build]
   push:
@@ -76,6 +82,19 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Configure mobile API endpoint
+        env:
+          API_URL: ${{ inputs.api_url }}
+        run: |
+          if [ -n "$API_URL" ]; then
+            case "$API_URL" in
+              https://*) ;;
+              *) echo "api_url must use HTTPS"; exit 1 ;;
+            esac
+            printf 'EXPO_PUBLIC_API_URL=%s\\n' "$API_URL" > .env.production.local
+          else
+            printf 'EXPO_PUBLIC_API_URL=\\n' > .env.production.local
+          fi
       - name: Install mobile dependencies
         run: npm install --no-audit --no-fund
       - name: Diagnose Expo project
