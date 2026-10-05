@@ -30,9 +30,11 @@ import { createOAuthState, consumeOAuthState, exchangeGitHubCode, githubToken } 
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
+app.set('trust proxy', 1);
 const requestCounts = new Map<string, { startedAt: number; count: number }>();
 const RATE_WINDOW_MS = 60_000;
-const RATE_LIMIT = 60;
+const RATE_LIMIT_GENERAL = 120;
+const RATE_LIMIT_AGENT = 12;
 
 app.use((req, res, next) => {
   const configuredKey = process.env.BMZ_API_KEY?.trim();
@@ -43,16 +45,21 @@ app.use((req, res, next) => {
     return;
   }
 
+  if (req.path === '/health') {
+    next();
+    return;
+  }
   const now = Date.now();
-  const key = req.ip || 'unknown';
+  const key = `${req.ip || 'unknown'}:${req.path === '/api/agent' ? 'agent' : 'general'}`;
+  const limit = req.path === '/api/agent' ? RATE_LIMIT_AGENT : RATE_LIMIT_GENERAL;
   const current = requestCounts.get(key);
   if (!current || now - current.startedAt >= RATE_WINDOW_MS) {
     requestCounts.set(key, { startedAt: now, count: 1 });
     next();
     return;
   }
-  if (current.count >= RATE_LIMIT) {
-    res.status(429).json({ success: false, error: 'تم تجاوز حد الطلبات المؤقت.' });
+  if (current.count >= limit) {
+    res.status(429).json({ success: false, error: 'تم تجاوز حد الطلبات المؤقت، يرجى المحاولة بعد قليل.' });
     return;
   }
   current.count += 1;
