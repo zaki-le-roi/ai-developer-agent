@@ -11,6 +11,7 @@
     "worker": "tsx src/worker.ts"
   },
   "dependencies": {
+    "@types/node": "^24.5.2",
     "express": "^5.1.0",
     "openai": "^6.17.0",
     "adm-zip": "^0.5.16",
@@ -18,7 +19,6 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.5",
-    "@types/node": "^24.5.2",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
     "@types/adm-zip": "^0.5.7"
