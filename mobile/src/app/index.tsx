@@ -3,7 +3,8 @@ import {Alert,KeyboardAvoidingView,Platform,Pressable,SafeAreaView,ScrollView,St
 import {Linking} from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
-const CONFIGURED_API_URL=normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL??'');
+const DEFAULT_API_URL='https://bmz-ai-backend.onrender.com';
+const CONFIGURED_API_URL=normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL?.trim()||DEFAULT_API_URL);
 const REQUEST_TIMEOUT_MS=20000;
 
 function normalizeApiUrl(value:string){
