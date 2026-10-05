@@ -105,15 +105,21 @@ export default function HomeScreen(){
  async function openFile(path:string){if(!projectId)return;try{const r=await apiFetch(base+'/file?path='+encodeURIComponent(path));const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر قراءة الملف.');setSelected(path);setCode(d.content||'');setTab('files');}catch(e){Alert.alert('خطأ',e instanceof Error?e.message:'تعذر قراءة الملف.');}}
  async function saveFile(){if(!projectId||!selected)return;const r=await apiFetch(base+'/file',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:selected,content:code})});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر الحفظ.');setCommitStatus('تم حفظ الملف في مساحة العمل.');await refreshFiles();}
  async function send(textOverride?:string,approvalToken?:string){
-  const text=(textOverride??message).trim();if(!text||sending)return;setSending(true);setMessage('');
-  setLogs(x=>[...x,{id:Date.now(),role:'user',text}]);setTab('logs');
-  try{const pid=await ensureProject();const sid=await ensureSession(pid);const r=await apiFetch(apiBase+'/api/agent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,projectId:pid,sessionId:sid,...(approvalToken?{permissionLevel:'approval_required',approvalToken}:{})})});const d=await r.json();
+  const text=(textOverride??message).trim();if(!text||sending)return;
+  setSending(true);setTab('logs');setLogs(x=>[...x,{id:Date.now(),role:'user',text},{id:Date.now()+1,role:'agent',text:'جارٍ تجهيز الأمر وإرساله إلى BMZ AI…'}]);
+  try{
+   const pid=await ensureProject();
+   setLogs(x=>[...x,{id:Date.now()+2,role:'agent',text:'تم تجهيز المشروع. جارٍ إنشاء جلسة التنفيذ…'}]);
+   const sid=await ensureSession(pid);
+   setLogs(x=>[...x,{id:Date.now()+3,role:'agent',text:'تم إنشاء جلسة التنفيذ. جارٍ تشغيل الوكيل…'}]);
+   const r=await apiFetch(apiBase+'/api/agent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,projectId:pid,sessionId:sid,...(approvalToken?{permissionLevel:'approval_required',approvalToken}:{})})});
+   const raw=await r.text();let d:any={};try{d=raw?JSON.parse(raw):{};}catch{d={error:raw||'استجابة غير صالحة من الخادم.'};}
    if(d.plan)setPlan(d.plan);if(d.execution)setExecution(d.execution);
-   if(d.approval){setApproval(d.approval);setLogs(x=>[...x,{id:Date.now()+1,role:'agent',text:'مطلوب موافقة: '+d.approval.reason}]);return;}
-   if(!r.ok||!d.success)throw new Error(d.error||d.execution?.message||'فشل التنفيذ.');
-   const summary=[d.assistantMessage||d.execution?.message||'اكتمل التنفيذ.',...(d.execution?.observations||[]).map((o:any)=>(o.ok?'✓ ':'✗ ')+o.summary)].join('\n');
-   setLogs(x=>[...x,{id:Date.now()+1,role:'agent',text:summary}]);await refreshAll();
-  }catch(e){setLogs(x=>[...x,{id:Date.now()+1,role:'agent',text:e instanceof Error?e.message:'حدث خطأ.'}]);}
+   if(d.approval){setApproval(d.approval);setLogs(x=>[...x,{id:Date.now()+4,role:'agent',text:'مطلوب موافقة: '+d.approval.reason}]);return;}
+   if(!r.ok||!d.success)throw new Error(d.error||d.execution?.message||'فشل تنفيذ الأمر على الخادم.');
+   const summary=[d.assistantMessage||d.execution?.message||'اكتمل التنفيذ.',...(d.execution?.observations||[]).map((o:any)=>(o.ok?'✓ ':'✗ ')+o.summary)].join('\\n');
+   setLogs(x=>[...x,{id:Date.now()+4,role:'agent',text:summary}]);await refreshAll();
+  }catch(e){setLogs(x=>[...x,{id:Date.now()+5,role:'agent',text:'خطأ أثناء تنفيذ الأمر: '+(e instanceof Error?e.message:'حدث خطأ غير معروف.')}]);}
   finally{setSending(false);}
  }
  async function runTerminal(){
