@@ -57,15 +57,12 @@ export default function HomeScreen(){
   if(response.status===401 && !url.includes('/api/auth/device')){
     const deviceId=(await SecureStore.getItemAsync('bmz_device_id'))||('android-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,14));
     await SecureStore.setItemAsync('bmz_device_id',deviceId);
-    const authResponse=await makeRequest(null);
-    if(authResponse.status===401 || !url.includes('/api/auth/device')){
-      const r=await fetch(normalizeApiUrl(apiBase)+'/api/auth/device',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deviceId})});
-      const d=await r.json().catch(()=>({}));
-      if(r.ok&&d.token){
-        await SecureStore.setItemAsync('bmz_auth_token',d.token);
-        setToken(d.token);
-        response=await makeRequest(d.token);
-      }
+    const r=await fetch(normalizeApiUrl(apiBase)+'/api/auth/device',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deviceId})});
+    const d=await r.json().catch(()=>({}));
+    if(r.ok&&d.token){
+      await SecureStore.setItemAsync('bmz_auth_token',d.token);
+      setToken(d.token);
+      response=await makeRequest(d.token);
     }
   }
   return response;
@@ -172,7 +169,7 @@ export default function HomeScreen(){
   ['📱 Android','افحص تطبيق Android وابنه ثم تحقق من APK.'],
   ['📁 الملفات','اعرض بنية الملفات المهمة واشرح ما يحتاج إلى تعديل.'],
  ];
- const nav:[Tab,string][]=[['home','الرئيسية'],['files','الملفات'],['terminal','Terminal'],['plan','الخطة'],['logs','السجل'],['preview','المعاينة'],['memory','الذاكرة'],['workflows','Workflow'],['integrations','التكاملات'],['settings','الإعدادات']];
+ const nav:[Tab,string][]=[['home','الرئيسية'],['files','الملفات'],['terminal','الأوامر'],['plan','خطة التنفيذ'],['logs','السجل'],['preview','المعاينة'],['memory','الذاكرة'],['workflows','سير العمل'],['integrations','التكاملات'],['settings','الإعدادات']];
  const selectedContent=selected?code:'';
  if(booting)return <SafeAreaView style={s.safe}><View style={s.auth}><Text style={s.brand}>BMZ AI</Text><Text style={s.hero}>جاري تشغيل BMZ AI</Text><Text style={s.heroSub}>يتم تفعيل هذا الهاتف تلقائيًا. لا يوجد تسجيل دخول أو إنشاء حساب.</Text></View></SafeAreaView>;
  if(!token)return <SafeAreaView style={s.safe}><ScrollView contentContainerStyle={s.auth}><Text style={s.brand}>BMZ AI</Text><Text style={s.hero}>تعذر الاتصال بالخادم</Text><Text style={s.heroSub}>{connectionError||'تحقق من عنوان Backend واتصال الإنترنت.'}</Text><TextInput style={s.input} value={apiBase} onChangeText={updateApiBase} placeholder="عنوان Backend عبر HTTPS" placeholderTextColor="#71857D" autoCapitalize="none" autoCorrect={false} keyboardType="url"/><Pressable style={s.primary} onPress={()=>{setBooting(true);setConnectionError('');void (async()=>{try{const deviceId=(await SecureStore.getItemAsync('bmz_device_id'))||('android-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,14));await SecureStore.setItemAsync('bmz_device_id',deviceId);await activateDevice(normalizeApiUrl(apiBase),deviceId);}catch(e){setConnectionError(e instanceof Error?e.message:'تعذر الاتصال بالخادم.')}finally{setBooting(false);}})();}}><Text style={s.primaryText}>إعادة الاتصال</Text></Pressable></ScrollView></SafeAreaView>;
@@ -209,6 +206,71 @@ export default function HomeScreen(){
   </>}
  </KeyboardAvoidingView></SafeAreaView>
 }
-const s=StyleSheet.create({auth:{flexGrow:1,justifyContent:'center',padding:24},error:{color:'#FF8B8B',textAlign:'center',marginBottom:12},link:{color:'#70D6A1',textAlign:'center',padding:12},
- safe:{flex:1,backgroundColor:'#07110D'},fill:{flex:1},top:{padding:16,borderBottomWidth:1,borderBottomColor:'#183027',flexDirection:'row-reverse',justifyContent:'space-between',alignItems:'center'},brand:{color:'#fff',fontSize:24,fontWeight:'900',textAlign:'right'},subtitle:{color:'#7F978D',fontSize:11,marginTop:3,textAlign:'right'},statusDot:{width:10,height:10,borderRadius:5,backgroundColor:'#4ADE80'},start:{padding:18,paddingBottom:50},hero:{color:'#fff',fontSize:30,fontWeight:'900',textAlign:'right',marginTop:25},heroSub:{color:'#8DA097',fontSize:14,lineHeight:22,textAlign:'right',marginTop:8,marginBottom:20},pageTitle:{color:'#fff',fontSize:22,fontWeight:'900',textAlign:'right',marginBottom:6},pageSub:{color:'#8DA097',textAlign:'right',lineHeight:21,marginBottom:16},projectBar:{padding:10,borderBottomWidth:1,borderBottomColor:'#183027',flexDirection:'row-reverse',justifyContent:'space-between'},projectTitle:{color:'#fff',fontWeight:'800'},change:{color:'#70D6A1',fontWeight:'700'},nav:{flexDirection:'row-reverse',borderBottomWidth:1,borderBottomColor:'#183027',overflow:'hidden'},navItem:{paddingHorizontal:10,paddingVertical:11},navActive:{borderBottomWidth:2,borderBottomColor:'#70D6A1'},navText:{color:'#718078',fontSize:11},navTextActive:{color:'#fff'},content:{flex:1},pad:{padding:14,paddingBottom:90},input:{backgroundColor:'#101B16',borderWidth:1,borderColor:'#254137',borderRadius:12,color:'#fff',padding:13,marginBottom:9,textAlign:'right'},command:{minHeight:115,backgroundColor:'#0F1A15',borderWidth:1,borderColor:'#37604D',borderRadius:16,color:'#fff',padding:15,textAlign:'right',textAlignVertical:'top',marginBottom:10},primary:{backgroundColor:'#EAFBF1',borderRadius:13,padding:14,alignItems:'center',marginBottom:10},primarySmall:{backgroundColor:'#EAFBF1',borderRadius:11,padding:11,alignItems:'center',margin:5},primaryText:{color:'#07110D',fontWeight:'900'},secondary:{borderWidth:1,borderColor:'#315044',borderRadius:12,padding:12,alignItems:'center',marginBottom:10},secondaryText:{color:'#DDEBE4',fontWeight:'800'},quick:{flexDirection:'row-reverse',flexWrap:'wrap',gap:7,marginBottom:14},chip:{borderWidth:1,borderColor:'#315044',backgroundColor:'#0C1712',borderRadius:18,paddingHorizontal:12,paddingVertical:9},chipText:{color:'#CFE0D8',fontSize:11},section:{color:'#9EB2A8',fontWeight:'800',textAlign:'right',marginVertical:8},project:{backgroundColor:'#0E1914',borderWidth:1,borderColor:'#20372D',borderRadius:12,padding:13,marginBottom:7},projectName:{color:'#fff',fontWeight:'800',textAlign:'right'},projectRepo:{color:'#718078',fontSize:10,textAlign:'right',marginTop:3},card:{backgroundColor:'#0E1914',borderWidth:1,borderColor:'#20372D',borderRadius:14,padding:14,marginVertical:7},cardTitle:{color:'#fff',fontWeight:'900',textAlign:'right',marginBottom:8},cardText:{color:'#D0DDD7',textAlign:'right',lineHeight:21},muted:{color:'#718078',fontSize:11,marginTop:5},status:{color:'#78A08E',fontSize:11,textAlign:'center',marginVertical:5},row:{flexDirection:'row-reverse',gap:7},flex:{flex:1},fileHeader:{padding:12,flexDirection:'row-reverse',justifyContent:'space-between',alignItems:'center'},file:{padding:13,borderBottomWidth:1,borderBottomColor:'#183027'},fileText:{color:'#D8E4DF',fontSize:12,textAlign:'left'},editorBox:{height:270,padding:10,borderTopWidth:1,borderTopColor:'#254137'},editor:{flex:1,backgroundColor:'#0A120E',color:'#E8F0EC',borderRadius:10,padding:10,fontFamily:Platform.OS==='ios'?'Menlo':'monospace',fontSize:11},terminal:{backgroundColor:'#030604',borderWidth:1,borderColor:'#254137',borderRadius:12,color:'#B8E6C9',padding:14,minHeight:260,fontFamily:Platform.OS==='ios'?'Menlo':'monospace',marginTop:10},step:{flexDirection:'row-reverse',alignItems:'center',backgroundColor:'#0E1914',borderWidth:1,borderColor:'#20372D',borderRadius:12,padding:12,marginVertical:5},stepNum:{width:28,height:28,borderRadius:14,backgroundColor:'#EAFBF1',color:'#07110D',textAlign:'center',paddingTop:5,fontWeight:'900',marginLeft:10},stepTitle:{color:'#E8F0EC',textAlign:'right',fontWeight:'800'},empty:{color:'#718078',textAlign:'center',padding:30},log:{backgroundColor:'#0E1914',borderWidth:1,borderColor:'#20372D',borderRadius:12,padding:12,marginBottom:8},userLog:{borderColor:'#47745C'},logText:{color:'#DCE8E2',lineHeight:20,textAlign:'right',marginTop:5},preview:{flex:1,alignItems:'center',justifyContent:'center',padding:20,backgroundColor:'#0A120E'},previewText:{color:'#9DB0A7',textAlign:'center',marginBottom:15},approval:{padding:10,borderTopWidth:1,borderColor:'#705B22',backgroundColor:'#19170E'},approvalText:{color:'#FFECC0',textAlign:'right',marginBottom:8},composer:{position:'absolute',bottom:0,left:0,right:0,padding:8,borderTopWidth:1,borderTopColor:'#183027',backgroundColor:'#08130E',flexDirection:'row-reverse',gap:7},message:{flex:1,minHeight:46,maxHeight:90,backgroundColor:'#101B16',borderWidth:1,borderColor:'#315044',borderRadius:14,color:'#fff',padding:11,textAlign:'right'},send:{width:46,height:46,borderRadius:13,backgroundColor:'#EAFBF1',alignItems:'center',justifyContent:'center'},sendText:{color:'#07110D',fontSize:23,fontWeight:'900'}
+const s=StyleSheet.create({
+ auth:{flexGrow:1,justifyContent:'center',padding:24,backgroundColor:'#07111F'},
+ error:{color:'#FF9B9B',textAlign:'center',marginBottom:12},
+ link:{color:'#67E8F9',textAlign:'center',padding:12},
+ safe:{flex:1,backgroundColor:'#07111F'},
+ fill:{flex:1},
+ top:{paddingHorizontal:18,paddingVertical:15,borderBottomWidth:1,borderBottomColor:'#16283D',flexDirection:'row-reverse',justifyContent:'space-between',alignItems:'center',backgroundColor:'#091726'},
+ brand:{color:'#F8FAFC',fontSize:25,fontWeight:'900',textAlign:'right',letterSpacing:.3},
+ subtitle:{color:'#7F93AA',fontSize:11,marginTop:3,textAlign:'right'},
+ statusDot:{width:9,height:9,borderRadius:5,backgroundColor:'#34D399'},
+ start:{paddingHorizontal:18,paddingTop:20,paddingBottom:110},
+ hero:{color:'#F8FAFC',fontSize:31,fontWeight:'900',textAlign:'right',marginTop:22,lineHeight:39},
+ heroSub:{color:'#8EA3B8',fontSize:14,lineHeight:22,textAlign:'right',marginTop:8,marginBottom:20},
+ pageTitle:{color:'#F8FAFC',fontSize:23,fontWeight:'900',textAlign:'right',marginBottom:6},
+ pageSub:{color:'#8EA3B8',textAlign:'right',lineHeight:21,marginBottom:16},
+ projectBar:{paddingHorizontal:14,paddingVertical:11,borderBottomWidth:1,borderBottomColor:'#16283D',flexDirection:'row-reverse',justifyContent:'space-between',backgroundColor:'#0A1929'},
+ projectTitle:{color:'#F8FAFC',fontWeight:'800'},
+ change:{color:'#67E8F9',fontWeight:'800'},
+ nav:{flexDirection:'row-reverse',borderBottomWidth:1,borderBottomColor:'#16283D',backgroundColor:'#091726'},
+ navItem:{paddingHorizontal:11,paddingVertical:12},
+ navActive:{borderBottomWidth:2,borderBottomColor:'#67E8F9'},
+ navText:{color:'#647A91',fontSize:11,fontWeight:'700'},
+ navTextActive:{color:'#F8FAFC'},
+ content:{flex:1},
+ pad:{padding:15,paddingBottom:105},
+ input:{backgroundColor:'#0C1B2B',borderWidth:1,borderColor:'#1E3A52',borderRadius:14,color:'#F8FAFC',padding:14,marginBottom:10,textAlign:'right'},
+ command:{minHeight:125,backgroundColor:'#0B1A2A',borderWidth:1,borderColor:'#24506A',borderRadius:18,color:'#F8FAFC',padding:16,textAlign:'right',textAlignVertical:'top',marginBottom:11},
+ primary:{backgroundColor:'#E6FFFB',borderRadius:14,padding:14,alignItems:'center',marginBottom:10,shadowOpacity:.12,shadowRadius:8},
+ primarySmall:{backgroundColor:'#E6FFFB',borderRadius:12,padding:11,alignItems:'center',margin:5},
+ primaryText:{color:'#07111F',fontWeight:'900'},
+ secondary:{borderWidth:1,borderColor:'#27465D',backgroundColor:'#0A1929',borderRadius:13,padding:12,alignItems:'center',marginBottom:10},
+ secondaryText:{color:'#D9E7F2',fontWeight:'800'},
+ quick:{flexDirection:'row-reverse',flexWrap:'wrap',gap:8,marginBottom:16},
+ chip:{borderWidth:1,borderColor:'#27465D',backgroundColor:'#0B1A2A',borderRadius:20,paddingHorizontal:13,paddingVertical:10},
+ chipText:{color:'#C9D7E5',fontSize:11,fontWeight:'700'},
+ section:{color:'#9EB3C7',fontWeight:'800',textAlign:'right',marginVertical:9},
+ project:{backgroundColor:'#0B1A2A',borderWidth:1,borderColor:'#1C3449',borderRadius:15,padding:14,marginBottom:8},
+ projectName:{color:'#F8FAFC',fontWeight:'800',textAlign:'right'},
+ projectRepo:{color:'#6F849A',fontSize:10,textAlign:'right',marginTop:4},
+ card:{backgroundColor:'#0B1A2A',borderWidth:1,borderColor:'#1C3449',borderRadius:16,padding:15,marginVertical:7},
+ cardTitle:{color:'#F8FAFC',fontSize:15,fontWeight:'900',textAlign:'right',marginBottom:8},
+ cardText:{color:'#CBD8E4',textAlign:'right',lineHeight:22},
+ muted:{color:'#71879C',fontSize:11,marginTop:5},
+ status:{color:'#7FA1B7',fontSize:11,textAlign:'center',marginVertical:6},
+ row:{flexDirection:'row-reverse',gap:8},
+ flex:{flex:1},
+ fileHeader:{padding:13,flexDirection:'row-reverse',justifyContent:'space-between',alignItems:'center'},
+ file:{padding:14,borderBottomWidth:1,borderBottomColor:'#16283D'},
+ fileText:{color:'#D8E4EF',fontSize:12,textAlign:'left'},
+ editorBox:{height:285,padding:10,borderTopWidth:1,borderTopColor:'#1E3A52'},
+ editor:{flex:1,backgroundColor:'#06101B',color:'#E8F3FA',borderRadius:12,padding:11,fontFamily:Platform.OS==='ios'?'Menlo':'monospace',fontSize:11},
+ terminal:{backgroundColor:'#030912',borderWidth:1,borderColor:'#1E3A52',borderRadius:14,color:'#B8E6F7',padding:14,minHeight:270,fontFamily:Platform.OS==='ios'?'Menlo':'monospace',marginTop:10},
+ step:{flexDirection:'row-reverse',alignItems:'center',backgroundColor:'#0B1A2A',borderWidth:1,borderColor:'#1C3449',borderRadius:14,padding:13,marginVertical:5},
+ stepNum:{width:30,height:30,borderRadius:15,backgroundColor:'#E6FFFB',color:'#07111F',textAlign:'center',paddingTop:6,fontWeight:'900',marginLeft:10},
+ stepTitle:{color:'#E8F3FA',textAlign:'right',fontWeight:'800'},
+ empty:{color:'#71879C',textAlign:'center',padding:34},
+ log:{backgroundColor:'#0B1A2A',borderWidth:1,borderColor:'#1C3449',borderRadius:14,padding:13,marginBottom:8},
+ userLog:{borderColor:'#2A7180'},
+ logText:{color:'#DCE8F2',lineHeight:21,textAlign:'right',marginTop:5},
+ preview:{flex:1,alignItems:'center',justifyContent:'center',padding:22,backgroundColor:'#081523'},
+ previewText:{color:'#9DB1C3',textAlign:'center',marginBottom:15},
+ approval:{padding:11,borderTopWidth:1,borderColor:'#765C20',backgroundColor:'#1A170D'},
+ approvalText:{color:'#FFECC0',textAlign:'right',marginBottom:9},
+ composer:{position:'absolute',bottom:0,left:0,right:0,padding:9,borderTopWidth:1,borderTopColor:'#16283D',backgroundColor:'#091726',flexDirection:'row-reverse',gap:8},
+ message:{flex:1,minHeight:48,maxHeight:92,backgroundColor:'#0C1B2B',borderWidth:1,borderColor:'#27465D',borderRadius:15,color:'#F8FAFC',padding:12,textAlign:'right'},
+ send:{width:48,height:48,borderRadius:14,backgroundColor:'#E6FFFB',alignItems:'center',justifyContent:'center'},
+ sendText:{color:'#07111F',fontSize:23,fontWeight:'900'}
 });
