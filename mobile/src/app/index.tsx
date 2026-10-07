@@ -25,6 +25,7 @@ type PlanStep={id:string,title:string,status:string};
 type Execution={status:string,message:string,iterations:number,observations:any[]};
 
 export default function HomeScreen(){
+ const {width}=useWindowDimensions();
  const [token,setToken]=useState<string|null>(null),[booting,setBooting]=useState(true),[connectionError,setConnectionError]=useState('');
  const [projectId,setProjectId]=useState<string|null>(null),[sessionId,setSessionId]=useState<string|null>(null);
  const [apiBase,setApiBase]=useState(CONFIGURED_API_URL),[repo,setRepo]=useState(''),[projectName,setProjectName]=useState('مشروع BMZ AI');
@@ -237,7 +238,7 @@ const s=StyleSheet.create({
  navActive:{borderBottomWidth:2,borderBottomColor:'#67E8F9'},
  navText:{color:'#647A91',fontSize:11,fontWeight:'700'},
  navTextActive:{color:'#F8FAFC'},
- content:{flex:1},
+ content:{flex:1},splitContent:{flexDirection:'row-reverse'},leftPane:{flex:1,minWidth:0,borderLeftWidth:1,borderLeftColor:'#16283D'},previewPane:{flex:1,minWidth:0,backgroundColor:'#020812'},previewHeader:{padding:12,borderBottomWidth:1,borderBottomColor:'#16283D',backgroundColor:'#081523'},previewTitle:{color:'#F8FAFC',fontWeight:'900',textAlign:'right'},previewUrl:{color:'#6F849A',fontSize:9,textAlign:'right',marginTop:3},webview:{flex:1,backgroundColor:'#fff'},previewEmpty:{flex:1,justifyContent:'center',alignItems:'center',padding:30},previewEmptyTitle:{color:'#F8FAFC',fontSize:22,fontWeight:'900',marginBottom:10},previewEmptyText:{color:'#71879C',textAlign:'center',lineHeight:21},
  pad:{padding:15,paddingBottom:105},
  input:{backgroundColor:'#0C1B2B',borderWidth:1,borderColor:'#1E3A52',borderRadius:14,color:'#F8FAFC',padding:14,marginBottom:10,textAlign:'right'},
  command:{minHeight:125,backgroundColor:'#0B1A2A',borderWidth:1,borderColor:'#24506A',borderRadius:18,color:'#F8FAFC',padding:16,textAlign:'right',textAlignVertical:'top',marginBottom:11},
