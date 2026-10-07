@@ -2,13 +2,13 @@
   "expo": {
     "name": "BMZ AI",
     "slug": "bmz-ai",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "orientation": "portrait",
     "scheme": "bmzai",
     "userInterfaceStyle": "dark",
     "android": {
       "package": "com.bmzai.app",
-      "versionCode": 5,
+      "versionCode": 6,
       "predictiveBackGestureEnabled": false
     },
     "plugins": [
@@ -29,6 +29,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD"
     }
   }
 }
