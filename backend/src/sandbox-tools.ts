@@ -30,6 +30,9 @@ const MAX_OUTPUT = 100000;
 const DEFAULT_TIMEOUT_MS = 120000;
 const INSTALL_TIMEOUT_MS = 300000;
 const ANDROID_TIMEOUT_MS = 600000;
+const MAX_FILE_BYTES = 2_000_000;
+const MAX_CONCURRENT_PROCESSES = 2;
+let activeProcesses = 0;
 
 function safePath(root: string, relativePath: string): string {
   if (!relativePath || path.isAbsolute(relativePath)) {
@@ -84,6 +87,7 @@ export async function runCommandInSandbox(
   args: string[] = [],
 ) {
   validateCommand(command, args);
+  if(activeProcesses>=MAX_CONCURRENT_PROCESSES) throw new Error('تم بلوغ الحد الآمن للعمليات المتزامنة داخل Sandbox.');
   if (args.length > 50 || args.some((arg) => arg.length > 4000)) {
     throw new Error('معطيات الأمر تتجاوز الحدود المسموح بها.');
   }
