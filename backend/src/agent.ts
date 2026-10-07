@@ -7,12 +7,15 @@ import { addExecutionLog } from './execution-store.js';
 import { createModelProvider } from './model-provider.js';
 import { requestApproval, consumeApproval } from './approval-store.js';
 import { listWorkspaceFiles } from './workspace-service.js';
+import { buildAgentContext, compactContext } from './context-manager.js';
+import { reviewObservations } from './reviewer.js';
 
 export async function handleAgentRequest(request: AgentRequest): Promise<AgentResponse> {
   const projectId = request.projectId ?? null;
   const provider = createModelProvider();
   const workspaceFiles = projectId ? (await listWorkspaceFiles(projectId)).files : [];
   const permissionLevel = request.permissionLevel ?? (/(commit|push|deploy|نشر|رفع|حذف نهائي|delete permanently|production)/i.test(request.message) ? 'approval_required' : 'sandbox');
+  const context = await buildAgentContext({projectId, goal:request.message, files:workspaceFiles});
   const plan = await createPlan(request.message, provider, workspaceFiles);
 
   await addExecutionLog(projectId, request.message, 'started');
@@ -62,6 +65,7 @@ export async function handleAgentRequest(request: AgentRequest): Promise<AgentRe
 
   for (const step of plan.steps) step.status = 'running';
   const core = await runCoreLoop(projectId ?? undefined, plan, permissionLevel, request.userId, provider);
+  const review = reviewObservations(core.observations);
 
   plan.steps.forEach((step, index) => {
     step.status = index < core.iterations
@@ -90,6 +94,8 @@ export async function handleAgentRequest(request: AgentRequest): Promise<AgentRe
         [
           'أنت مكوّن الاستدلال داخل BMZ AI نفسه، ولست وكيلاً خارجياً.',
           'لخّص نتيجة التنفيذ التالية بالعربية الفصحى، ولا تدّعِ تنفيذ شيء غير موجود في البيانات.',
+          `سياق الوكيل: ${compactContext({...context,observations:core.observations})}`,
+          `مراجعة مستقلة: ${JSON.stringify(review)}`,
           JSON.stringify(core.observations),
         ].join('\n'),
       );
