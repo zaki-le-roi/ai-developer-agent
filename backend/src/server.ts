@@ -294,8 +294,38 @@ app.get('/api/meta/webhook/:token',async(req,res)=>{
 app.post('/api/meta/webhook/:token',async(req,res)=>{
   const userId=resolveMetaWebhookUser(req.params.token);
   if(!userId){res.status(403).json({success:false,error:'invalid webhook token'});return;}
-  // يتم تسليم الحدث إلى سجل الوكيل/Workflow في طبقة لاحقة؛ لا نرسل رداً آلياً غير مصرح به من هنا.
   await addExecutionLog(null,`Meta webhook received for user ${userId}: ${JSON.stringify(req.body).slice(0,5000)}`,'started');
+  if(process.env.BMZ_META_AUTOREPLY==='true' && await hasPermission(userId,null,'SEND_MESSAGE')){
+    try{
+      const payload=req.body as any;
+      const project=(await listProjects(userId)).find(item=>Boolean(item.repositoryUrl))??null;
+      const events:any[]=[];
+      for(const entry of payload?.entry??[]){
+        for(const item of entry?.messaging??[]){
+          const text=typeof item?.message?.text==='string'?item.message.text.trim():'';
+          const senderId=typeof item?.sender?.id==='string'?item.sender.id:'';
+          if(text&&senderId)events.push({channel:'facebook',senderId,text});
+        }
+        for(const change of entry?.changes??[]){
+          const value=change?.value;
+          for(const message of value?.messages??[]){
+            const text=typeof message?.text?.body==='string'?message.text.body.trim():'';
+            const senderId=typeof message?.from==='string'?message.from:'';
+            if(text&&senderId)events.push({channel:'whatsapp',senderId,text});
+          }
+        }
+      }
+      for(const event of events.slice(0,5)){
+        const result=await handleAgentRequest({userId,message:`رسالة عميل عبر ${event.channel}: ${event.text}`,projectId:project?.id});
+        const reply=result.assistantMessage?.trim();
+        if(!reply)continue;
+        if(event.channel==='facebook')await sendFacebookPageMessage(userId,event.senderId,reply);
+        else await sendWhatsAppMessage(userId,event.senderId,reply);
+      }
+    }catch(error){
+      await addExecutionLog(null,error instanceof Error?error.message:'فشل الرد الآلي على رسالة Meta.','failed');
+    }
+  }
   res.json({success:true,received:true});
 });
 
