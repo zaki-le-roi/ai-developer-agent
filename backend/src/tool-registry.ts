@@ -6,7 +6,7 @@ export type ToolDefinition<T extends AgentAction=AgentAction>={
   description:string;
   risk:ToolRisk;
   inputSchema:Record<string,unknown>;
-  validate:(input:unknown)=>input is T;
+  validate:(input:unknown)=>boolean;
 };
 
 const definitions:ToolDefinition[]=[
