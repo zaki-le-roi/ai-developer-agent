@@ -14,6 +14,7 @@ import { scaffoldAndroidApp } from './app-builder.js';
 import { listWorkspaceFiles, readWorkspaceFile } from './workspace-service.js';
 import { commitWorkspaceToGitHub } from './github-write.js';
 import { hasPermission } from './permission-store.js';
+import { getTool, validateToolCall } from './tool-registry.js';
 import {
   readFileInSandbox,
   deleteFileInSandbox,
@@ -162,82 +163,22 @@ async function executeAction(
   }
 }
 
-function extractJson(text: string): unknown {
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start < 0 || end <= start) throw new Error('لم يُرجع مكوّن الإصلاح إجراء JSON صالحًا.');
-  return JSON.parse(text.slice(start, end + 1)) as unknown;
-}
-
-function isAction(value: unknown): value is AgentAction {
-  if (!value || typeof value !== 'object') return false;
-  const item = value as Record<string, unknown>;
-  if (typeof item.type !== 'string') return false;
-  if (!['inspect_workspace', 'list_files', 'read_file', 'write_file', 'delete_file', 'run_command', 'scaffold_app', 'build_android', 'preview_web', 'github_commit', 'test'].includes(item.type)) return false;
-  if (item.type === 'read_file' && typeof item.path !== 'string') return false;
-  if (item.type === 'preview_web') return true;
-  if (item.type === 'github_commit') return item.message === undefined || typeof item.message === 'string';
-  if (item.type === 'write_file' && (typeof item.path !== 'string' || typeof item.content !== 'string')) return false;
-  if (item.type === 'scaffold_app') return item.platform === undefined || item.platform === 'android';
-  if (item.type === 'build_android') return true;
-  if (item.type === 'run_command') {
-    if (typeof item.command !== 'string') return false;
-    if (item.args !== undefined && (!Array.isArray(item.args) || item.args.some((arg) => typeof arg !== 'string'))) return false;
-  }
-  return true;
-}
-
-async function requestContinuation(
-  provider: ModelProvider | undefined,
-  goal: string,
-  observations: CoreObservation[],
-): Promise<AgentAction | null> {
-  if (!provider || provider.name === 'unconfigured') return null;
+async function requestToolAction(provider: ModelProvider | undefined, prompt: string, allowed: string[]): Promise<AgentAction | null> {
+  if (!provider?.generateToolCall || provider.name === 'unconfigured') return null;
   try {
-    const generated = await provider.generate([
-      'أنت حلقة القرار المستمرة داخل BMZ AI.',
-      'راجع الهدف والعمليات المنفذة حتى الآن. إذا لم يكتمل الهدف، أرجع إجراء JSON واحدًا إضافيًا فقط. إذا اكتمل تمامًا أرجع {"done":true}.',
-      'لا تعيد اختبارًا نجح إلا إذا غيّرت الملفات بعده. لا تكتفِ بالتلخيص.',
-      'الأنواع المسموحة: read_file, write_file, run_command, scaffold_app, build_android, preview_web, test.',
-      `الهدف: ${goal}`,
-      `الملاحظات: ${JSON.stringify(observations.slice(-12))}`,
-    ].join('\\n'));
-    const parsed = extractJson(generated);
-    if (!parsed || typeof parsed !== 'object') return null;
-    const value = parsed as Record<string, unknown>;
-    if (value.done === true) return null;
-    return isAction(value.action) ? value.action : null;
-  } catch {
-    return null;
-  }
+    const tools = allowed.map(name => getTool(name)).filter((tool): tool is NonNullable<ReturnType<typeof getTool>> => Boolean(tool))
+      .map(tool => ({name:tool.name,description:tool.description,parameters:tool.inputSchema}));
+    const call = await provider.generateToolCall(prompt, tools);
+    if (!call || !allowed.includes(call.name)) return null;
+    return validateToolCall(call.name, call.arguments);
+  } catch { return null; }
 }
-
-async function requestRepair(
-  provider: ModelProvider | undefined,
-  goal: string,
-  observation: CoreObservation,
-): Promise<AgentAction | null> {
-  if (!provider || provider.name === 'unconfigured') return null;
-
-  try {
-    const generated = await provider.generate([
-      'أنت مكوّن الإصلاح داخل BMZ AI نفسه.',
-      'حلّل نتيجة العملية الفاشلة واقترح إجراءً واحدًا فقط لإصلاحها داخل Sandbox.',
-      'أرجع JSON فقط بالشكل {"action":{...}}.',
-      'الأنواع المسموحة: read_file, write_file, run_command, test.',
-      'لا تستخدم مسارات مطلقة. لا تستخدم أوامر shell مركبة.',
-      `المهمة: ${goal}`,
-      `النتيجة الفاشلة: ${JSON.stringify(observation)}`,
-    ].join('\n'));
-    const parsed = extractJson(generated);
-    if (!parsed || typeof parsed !== 'object') return null;
-    const action = (parsed as Record<string, unknown>).action;
-    return isAction(action) ? action : null;
-  } catch {
-    return null;
-  }
+async function requestContinuation(provider: ModelProvider | undefined, goal: string, observations: CoreObservation[]): Promise<AgentAction | null> {
+  return requestToolAction(provider, 'أنت حلقة القرار داخل BMZ AI. اختر أداة واحدة فقط إذا لم يكتمل الهدف. لا تكتف بالتلخيص.\\n'+`الهدف: ${goal}\\nآخر الملاحظات: ${JSON.stringify(observations.slice(-12))}`, ['read_file','write_file','run_command','scaffold_app','build_android','preview_web','test','list_files']);
 }
-
+async function requestRepair(provider: ModelProvider | undefined, goal: string, observation: CoreObservation): Promise<AgentAction | null> {
+  return requestToolAction(provider, 'أنت مكوّن الإصلاح داخل BMZ AI. اختر أداة واحدة فقط لإصلاح الفشل داخل Sandbox. لا تستخدم مسارات مطلقة أو shell مركب.\\n'+`المهمة: ${goal}\\nالفشل: ${JSON.stringify(observation)}`, ['read_file','write_file','run_command','test']);
+}
 export async function runCoreLoop(
   projectId: string | undefined,
   plan: AgentPlan,
