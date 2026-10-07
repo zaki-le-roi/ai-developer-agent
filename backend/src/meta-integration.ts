@@ -1,4 +1,5 @@
 import { getSecret, putSecret } from './secret-store.js';
+import { createHmac } from 'node:crypto';
 
 const graphVersion=process.env.META_GRAPH_VERSION?.trim()||'v23.0';
 const graphBase=process.env.META_GRAPH_BASE_URL?.trim()||'https://graph.facebook.com';
@@ -36,4 +37,19 @@ export async function sendWhatsAppMessage(userId:string,to:string,text:string){
   const phoneId=getSecret(userId,'meta_whatsapp_phone_id');
   if(!token||!phoneId)throw new Error('لم يتم ربط WhatsApp Cloud API لهذا المستخدم.');
   return graph(`${phoneId}/messages`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({messaging_product:'whatsapp',to,type:'text',text:{body:text}})});
+}
+
+export function createMetaWebhookToken(userId:string){
+  const key=process.env.BMZ_MASTER_KEY;
+  if(!key)throw new Error('BMZ_MASTER_KEY غير مضبوط.');
+  return Buffer.from(userId).toString('base64url')+'.'+createHmac('sha256',key).update('meta:'+userId).digest('base64url');
+}
+export function resolveMetaWebhookUser(token:string){
+  const key=process.env.BMZ_MASTER_KEY;
+  if(!key)return null;
+  const [encoded,sig]=token.split('.');
+  if(!encoded||!sig)return null;
+  let userId:string; try{userId=Buffer.from(encoded,'base64url').toString('utf8')}catch{return null}
+  const expected=createHmac('sha256',key).update('meta:'+userId).digest('base64url');
+  return sig===expected?userId:null;
 }
