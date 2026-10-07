@@ -39,7 +39,7 @@ const RATE_LIMIT_AGENT = 12;
 
 app.use((req, res, next) => {
   const configuredKey = process.env.BMZ_API_KEY?.trim();
-  const publicPath=req.path.startsWith('/api/auth/')||req.path==='/api/github/oauth/callback'||req.path.startsWith('/api/webhooks/trigger/');
+  const publicPath=req.path.startsWith('/api/auth/')||req.path==='/api/github/oauth/callback'||req.path.startsWith('/api/webhooks/trigger/')||req.path.startsWith('/api/meta/webhook/');
   const sessionAuthenticated = Boolean(authenticate(req));
   if (configuredKey && !publicPath && !sessionAuthenticated && req.header('x-bmz-key') !== configuredKey) {
     res.status(401).json({ success: false, error: 'مفتاح BMZ AI غير صالح أو مفقود.' });
@@ -92,7 +92,7 @@ app.get('/health', (_req, res) => {
 // كل واجهات API بعد نقاط المصادقة العامة تتطلب جلسة مستخدم.
 // الاستثناءات العامة الوحيدة هي OAuth callback وWebhook trigger لأنهما يحتاجان الوصول من GitHub/الخدمات الخارجية.
 app.use('/api', (req, res, next) => {
-  if (req.path === '/github/oauth/callback' || req.path.startsWith('/webhooks/trigger/')) {
+  if (req.path === '/github/oauth/callback' || req.path.startsWith('/webhooks/trigger/') || req.path.startsWith('/meta/webhook/')) {
     next();
     return;
   }
