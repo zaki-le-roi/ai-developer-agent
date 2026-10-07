@@ -1,285 +1,130 @@
-import React,{useEffect,useState} from 'react';
-import {Alert,KeyboardAvoidingView,Platform,Pressable,SafeAreaView,ScrollView,StatusBar,StyleSheet,Text,TextInput,View,useWindowDimensions} from 'react-native';
-import {Linking} from 'react-native';
+import React,{useEffect,useMemo,useState} from 'react';
+import {Alert,KeyboardAvoidingView,Linking,Platform,Pressable,SafeAreaView,ScrollView,StatusBar,StyleSheet,Text,TextInput,View,useWindowDimensions} from 'react-native';
 import {WebView} from 'react-native-webview';
 import * as SecureStore from 'expo-secure-store';
 
 const DEFAULT_API_URL='https://bmz-ai-backend.onrender.com';
-const CONFIGURED_API_URL=normalizeApiUrl(process.env.EXPO_PUBLIC_API_URL?.trim()||DEFAULT_API_URL);
-const REQUEST_TIMEOUT_MS=20000;
+const CONFIGURED_API_URL=(process.env.EXPO_PUBLIC_API_URL?.trim()||DEFAULT_API_URL).replace(/\/$/,'');
+const TIMEOUT=20000;
+type Mode='chat'|'site'|'social'|'control';
+type Msg={id:number;role:'user'|'agent';text:string};
+type Project={id:string;name:string;repositoryUrl?:string};
+type Integration={id:string;name:string;capabilities?:string[]};
+type Permission={id:string;permission:string;scope?:string};
 
-function normalizeApiUrl(value:string){
- const endpoint=value.trim().replace(/\/$/,'');
- if(!endpoint)return '';
- let url:URL;
- try{url=new URL(endpoint);}catch{throw new Error('عنوان Backend غير صالح. استخدم عنوانًا عامًا يبدأ بـ https://.');}
- if(url.protocol!=='https:')throw new Error('يجب أن يعمل Backend عبر HTTPS. لا تستخدم localhost أو 192.168.x.x أو أي عنوان جهاز محلي.');
- const host=url.hostname.toLowerCase();
- if(host==='localhost'||host==='127.0.0.1'||host==='0.0.0.0'||host.endsWith('.local')||/^10\\./.test(host)||/^192\\.168\\./.test(host)||/^172\\.(1[6-9]|2[0-9]|3[0-1])\\./.test(host))throw new Error('عنوان Backend محلي وغير صالح للنسخة المثبتة على Android. استخدم خادمًا عامًا عبر HTTPS.');
- return endpoint;
+function normalizeUrl(value:string){
+ const v=value.trim().replace(/\/$/,''); if(!v)return '';
+ let u:URL; try{u=new URL(v);}catch{throw new Error('العنوان غير صالح.');}
+ if(u.protocol!=='https:')throw new Error('استخدم HTTPS فقط.');
+ return v;
 }
-type Tab='home'|'files'|'terminal'|'plan'|'logs'|'preview'|'memory'|'workflows'|'integrations'|'settings';
-type Msg={id:number,role:'user'|'agent',text:string};
-type Approval={id:string,reason:string};
-type PlanStep={id:string,title:string,status:string};
-type Execution={status:string,message:string,iterations:number,observations:any[]};
 
 export default function HomeScreen(){
  const {width}=useWindowDimensions();
- const [token,setToken]=useState<string|null>(null),[booting,setBooting]=useState(true),[connectionError,setConnectionError]=useState('');
- const [projectId,setProjectId]=useState<string|null>(null),[sessionId,setSessionId]=useState<string|null>(null);
- const [apiBase,setApiBase]=useState(CONFIGURED_API_URL),[repo,setRepo]=useState(''),[projectName,setProjectName]=useState('مشروع BMZ AI');
- const [projects,setProjects]=useState<any[]>([]),[message,setMessage]=useState(''),[sending,setSending]=useState(false),[startStatus,setStartStatus]=useState('');
- const [files,setFiles]=useState<string[]>([]),[selected,setSelected]=useState(''),[code,setCode]=useState('');
- const [tab,setTab]=useState<Tab>('home'),[logs,setLogs]=useState<Msg[]>([]),[approval,setApproval]=useState<Approval|null>(null);
- const [plan,setPlan]=useState<{goal:string,steps:PlanStep[]}|null>(null),[execution,setExecution]=useState<Execution|null>(null);
- const [memory,setMemory]=useState<any[]>([]),[executions,setExecutions]=useState<any[]>([]);
- const [terminalCommand,setTerminalCommand]=useState(''),[terminalArgs,setTerminalArgs]=useState(''),[terminalOut,setTerminalOut]=useState('');
- const [buildStatus,setBuildStatus]=useState(''),[artifactAvailable,setArtifactAvailable]=useState(false),[commitStatus,setCommitStatus]=useState('');
- const [showNewProject,setShowNewProject]=useState(false),[showSettings,setShowSettings]=useState(false);
- const [workflows,setWorkflows]=useState<any[]>([]),[workflowNodes,setWorkflowNodes]=useState<any[]>([]),[workflowName,setWorkflowName]=useState('Workflow جديد'),[workflowBusy,setWorkflowBusy]=useState(false),[integrations,setIntegrations]=useState<any[]>([]),[permissions,setPermissions]=useState<any[]>([]),[previewUrl,setPreviewUrl]=useState('');
+ const wide=width>=760;
+ const [boot,setBoot]=useState(true),[token,setToken]=useState<string|null>(null),[api,setApi]=useState(CONFIGURED_API_URL),[error,setError]=useState('');
+ const [projects,setProjects]=useState<Project[]>([]),[projectId,setProjectId]=useState<string|null>(null);
+ const [mode,setMode]=useState<Mode>('chat'),[message,setMessage]=useState(''),[sending,setSending]=useState(false),[messages,setMessages]=useState<Msg[]>([]);
+ const [previewUrl,setPreviewUrl]=useState(''),[previewBusy,setPreviewBusy]=useState(false);
+ const [siteUrl,setSiteUrl]=useState(''),[siteSession,setSiteSession]=useState(''),[siteText,setSiteText]=useState(''),[siteBusy,setSiteBusy]=useState(false);
+ const [integrations,setIntegrations]=useState<Integration[]>([]),[permissions,setPermissions]=useState<Permission[]>([]);
+ const [fbToken,setFbToken]=useState(''),[waToken,setWaToken]=useState(''),[waPhone,setWaPhone]=useState(''),[verifyToken,setVerifyToken]=useState('');
+ const [recipient,setRecipient]=useState(''),[socialText,setSocialText]=useState(''),[socialBusy,setSocialBusy]=useState(false);
+ const [logs,setLogs]=useState<string[]>([]),[approval,setApproval]=useState<any>(null);
 
- const base=projectId?apiBase+'/api/projects/'+projectId:'';
+ const base=projectId?api+'/api/projects/'+projectId:'';
+ const currentProject=useMemo(()=>projects.find(p=>p.id===projectId),[projects,projectId]);
 
- function updateApiBase(value:string){setApiBase(value);try{const normalized=normalizeApiUrl(value);if(normalized)void SecureStore.setItemAsync('bmz_api_base',normalized);}catch{}}
  async function apiFetch(url:string,init?:RequestInit){
-  const makeRequest=async(currentToken:string|null)=>{
-    const headers=new Headers(init?.headers);
-    if(currentToken)headers.set('Authorization','Bearer '+currentToken);
-    const controller=new AbortController();
-    const timer=setTimeout(()=>controller.abort(),REQUEST_TIMEOUT_MS);
-    try{return await fetch(url,{...init,headers,signal:controller.signal});}
-    catch(error){
-      if(error instanceof Error && error.name==='AbortError') throw new Error('تعذر الاتصال بالخادم: انتهت مهلة الاتصال (20 ثانية). تأكد من عنوان Backend وأنه يعمل عبر HTTPS.');
-      if(error instanceof TypeError) throw new Error('تعذر الاتصال بالخادم. تحقق من عنوان Backend واتصال الإنترنت. لا تستخدم عنوانًا محليًا مثل 192.168.x.x في النسخة المثبتة على الهاتف.');
-      throw error;
-    } finally{clearTimeout(timer);}
+  const doReq=async(t:string|null)=>{
+   const h=new Headers(init?.headers); if(t)h.set('Authorization','Bearer '+t);
+   const c=new AbortController();const timer=setTimeout(()=>c.abort(),TIMEOUT);
+   try{return await fetch(url,{...init,headers:h,signal:c.signal});}
+   catch(e){if(e instanceof Error&&e.name==='AbortError')throw new Error('انتهت مهلة الاتصال بالخادم.');throw new Error('تعذر الاتصال بالخادم.');}
+   finally{clearTimeout(timer);}
   };
-  let response=await makeRequest(token);
-  if(response.status===401 && !url.includes('/api/auth/device')){
-    const deviceId=(await SecureStore.getItemAsync('bmz_device_id'))||('android-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,14));
-    await SecureStore.setItemAsync('bmz_device_id',deviceId);
-    const r=await fetch(normalizeApiUrl(apiBase)+'/api/auth/device',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deviceId})});
-    const d=await r.json().catch(()=>({}));
-    if(r.ok&&d.token){
-      await SecureStore.setItemAsync('bmz_auth_token',d.token);
-      setToken(d.token);
-      response=await makeRequest(d.token);
-    }
+  let r=await doReq(token);
+  if(r.status===401&&!url.includes('/api/auth/device')){
+   const id=(await SecureStore.getItemAsync('bmz_device_id'))||('android-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2));
+   await SecureStore.setItemAsync('bmz_device_id',id);
+   const a=await fetch(api+'/api/auth/device',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deviceId:id})});
+   const d=await a.json().catch(()=>({})); if(!a.ok||!d.token)throw new Error(d.error||'تعذر تفعيل الجهاز.');
+   await SecureStore.setItemAsync('bmz_auth_token',d.token);setToken(d.token);r=await doReq(d.token);
   }
-  return response;
+  return r;
  }
- async function activateDevice(endpoint:string,deviceId:string){
-  const r=await apiFetch(endpoint+'/api/auth/device',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deviceId})});
-  const d=await r.json().catch(()=>({}));
-  if(!r.ok||!d.token)throw new Error(d.error||'تعذر تفعيل هذا الجهاز.');
-  await SecureStore.setItemAsync('bmz_auth_token',d.token);
-  await SecureStore.setItemAsync('bmz_api_base',endpoint);
-  setToken(d.token);
-}
- useEffect(()=>{
-  void (async()=>{
-   setBooting(true);setConnectionError('');
-   try{
-    const [savedToken,savedApiBase,savedDeviceId]=await Promise.all([
-      SecureStore.getItemAsync('bmz_auth_token'),
-      SecureStore.getItemAsync('bmz_api_base'),
-      SecureStore.getItemAsync('bmz_device_id')
-    ]);
-    const endpoint=normalizeApiUrl(savedApiBase||CONFIGURED_API_URL);
-    const deviceId=savedDeviceId||('android-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,14));
-    if(!savedDeviceId)await SecureStore.setItemAsync('bmz_device_id',deviceId);
-    if(!endpoint)throw new Error('لم يتم ضبط عنوان Backend. استخدم عنوانًا عامًا عبر HTTPS في إعدادات بناء التطبيق.');
-    setApiBase(endpoint);
-    if(savedToken){setToken(savedToken);return;}
-    await activateDevice(endpoint,deviceId);
-   }catch(e){setConnectionError(e instanceof Error?e.message:'تعذر الاتصال بالخادم.')}
-   finally{setBooting(false);}
-  })();
- },[]);
- useEffect(()=>{if(token){void SecureStore.setItemAsync('bmz_auth_token',token);void loadProjects();}},[token]);
- useEffect(()=>{if(!projectId)return;void refreshAll();const timer=setInterval(()=>{void refreshAll();},3000);return()=>clearInterval(timer);},[projectId,token]);
+ async function json(r:Response){const raw=await r.text();try{return raw?JSON.parse(raw):{};}catch{return {error:raw};}}
 
- async function loadProjects(){try{const r=await apiFetch(apiBase+'/api/projects');const d=await r.json();if(r.ok)setProjects(d.projects||[]);}catch{}}
- async function refreshFiles(pid=projectId){if(!pid)return;try{const r=await apiFetch(apiBase+'/api/projects/'+pid+'/files');const d=await r.json();if(r.ok)setFiles(d.files||[]);}catch{}}
- async function refreshBuild(){if(!projectId)return;try{const r=await apiFetch(base+'/github/build');const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر قراءة البناء.');if(!d.found){setBuildStatus('لا يوجد بناء بعد.');setArtifactAvailable(false);return;}const run=d.run;setArtifactAvailable(Boolean(d.artifact));setBuildStatus(run.status==='completed'?(run.conclusion==='success'?'البناء ناجح — APK متاح.':'البناء فشل.'):'البناء قيد التنفيذ...');}catch(e){setBuildStatus(e instanceof Error?e.message:'تعذر قراءة البناء.');}}
- async function refreshMemory(){if(!projectId)return;try{const r=await apiFetch(base+'/memory');const d=await r.json();if(r.ok)setMemory(d.entries||[]);}catch{}}
- async function refreshExecutions(){if(!projectId)return;try{const r=await apiFetch(base+'/executions');const d=await r.json();if(r.ok)setExecutions(d.executions||[]);}catch{}}
- async function startPreview(){if(!projectId)return;try{const r=await apiFetch(apiBase+'/api/projects/'+encodeURIComponent(projectId)+'/preview/start',{method:'POST'});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر تشغيل Preview.');const url=apiBase+d.preview.urlPath+'?token='+encodeURIComponent(d.preview.token);setPreviewUrl(url);await Linking.openURL(url);}catch(e){Alert.alert('Preview',e instanceof Error?e.message:'تعذر تشغيل Preview.')}}
- async function refreshIntegrations(){try{const r=await apiFetch(apiBase+'/api/integrations');const d=await r.json();if(r.ok)setIntegrations(d.integrations||[]);const p=await apiFetch(apiBase+'/api/permissions');const pd=await p.json();if(p.ok)setPermissions(pd.permissions||[]);}catch{}}
- async function refreshWorkflows(){if(!projectId)return;try{const r=await apiFetch(apiBase+'/api/workflows?projectId='+encodeURIComponent(projectId));const d=await r.json();if(r.ok)setWorkflows(d.workflows||[]);}catch{}}
- async function refreshAll(){await Promise.all([refreshFiles(),refreshBuild(),refreshMemory(),refreshExecutions(),refreshWorkflows(),refreshIntegrations()]);}
-
- async function selectProject(id:string){setProjectId(id);setSessionId(null);setSelected('');setCode('');setTab('home');}
- async function ensureProject(){
-  if(projectId)return projectId;
-  const endpoint=repo.trim()?apiBase+'/api/projects/import-github':apiBase+'/api/projects';
-  const r=await apiFetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:projectName.trim()||'مشروع BMZ AI',...(repo.trim()?{repositoryUrl:repo.trim()}:{})})});
-  const d=await r.json();if(!r.ok||!d.project?.id)throw new Error(d.error||'تعذر إنشاء المشروع.');
-  setProjectId(d.project.id);await loadProjects();return d.project.id;
- }
- async function ensureSession(pid:string){if(sessionId)return sessionId;const r=await apiFetch(apiBase+'/api/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({projectId:pid})});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر إنشاء الجلسة.');setSessionId(d.session.id);return d.session.id;}
- async function openFile(path:string){if(!projectId)return;try{const r=await apiFetch(base+'/file?path='+encodeURIComponent(path));const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر قراءة الملف.');setSelected(path);setCode(d.content||'');setTab('files');}catch(e){Alert.alert('خطأ',e instanceof Error?e.message:'تعذر قراءة الملف.');}}
- async function saveFile(){if(!projectId||!selected)return;const r=await apiFetch(base+'/file',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:selected,content:code})});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر الحفظ.');setCommitStatus('تم حفظ الملف في مساحة العمل.');await refreshFiles();}
- async function send(textOverride?:string,approvalToken?:string){
-  const text=(textOverride??message).trim();if(!text||sending)return;
-  setSending(true);
-  setStartStatus('جارٍ إرسال الأمر إلى الخادم…');
-  setLogs(x=>[...x,{id:Date.now(),role:'user',text},{id:Date.now()+1,role:'agent',text:'جارٍ تجهيز الأمر وإرساله إلى BMZ AI…'}]);
+ useEffect(()=>{void(async()=>{try{
+  const [t,s]=await Promise.all([SecureStore.getItemAsync('bmz_auth_token'),SecureStore.getItemAsync('bmz_api_base')]);
+  const endpoint=normalizeUrl(s||CONFIGURED_API_URL);setApi(endpoint);
+  if(t)setToken(t);else{const id=(await SecureStore.getItemAsync('bmz_device_id'))||('android-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2));await SecureStore.setItemAsync('bmz_device_id',id);const r=await fetch(endpoint+'/api/auth/device',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deviceId:id})});const d=await json(r);if(!r.ok)throw new Error(d.error||'تعذر تفعيل الهاتف.');await SecureStore.setItemAsync('bmz_auth_token',d.token);setToken(d.token);}
+ }catch(e){setError(e instanceof Error?e.message:'تعذر الاتصال.');}finally{setBoot(false);}})()},[]);
+ useEffect(()=>{if(token)void loadAll()},[token]);
+ async function loadAll(){try{
+  const p=await apiFetch(api+'/api/projects');const pd=await json(p);if(p.ok){setProjects(pd.projects||[]);if(!projectId&&pd.projects?.[0])setProjectId(pd.projects[0].id);}
+  const i=await apiFetch(api+'/api/integrations');const id=await json(i);if(i.ok)setIntegrations(id.integrations||[]);
+  const q=await apiFetch(api+'/api/permissions');const qd=await json(q);if(q.ok)setPermissions(qd.permissions||[]);
+ }catch{}}
+ async function send(){
+  const text=message.trim();if(!text||sending)return;setSending(true);setMessages(x=>[...x,{id:Date.now(),role:'user',text}]);setMessage('');
   try{
-   const connectionOnly=/^(افحص|تحقق من|اختبر)\s*(الاتصال\s*)?(بالخادم|بالسيرفر|الخادم|السيرفر)\s*$/i.test(text)||/اتصل بالخادم/.test(text);
-   if(connectionOnly){
-    setStartStatus('جارٍ فحص اتصال الخادم…');
-    const r=await apiFetch(apiBase+'/health');
-    const raw=await r.text();let d:any={};try{d=raw?JSON.parse(raw):{};}catch{d={};}
-    if(!r.ok||!d.success)throw new Error(d.error||'الخادم لم يعطِ استجابة ناجحة.');
-    const result='✓ الاتصال بالخادم ناجح. BMZ AI Backend يعمل وحالته: '+(d.status||'جاهز')+'.';
-    setStartStatus(result);
-    setLogs(x=>[...x,{id:Date.now()+2,role:'agent',text:result}]);
-    setMessage('');
-    return;
-   }
-   const pid=await ensureProject();
-   setLogs(x=>[...x,{id:Date.now()+2,role:'agent',text:'تم تجهيز المشروع. جارٍ إنشاء جلسة التنفيذ…'}]);
-   const sid=await ensureSession(pid);
-   setLogs(x=>[...x,{id:Date.now()+3,role:'agent',text:'تم إنشاء جلسة التنفيذ. جارٍ تشغيل الوكيل…'}]);
-   const r=await apiFetch(apiBase+'/api/agent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,projectId:pid,sessionId:sid,...(approvalToken?{permissionLevel:'approval_required',approvalToken}:{})})});
-   const raw=await r.text();let d:any={};try{d=raw?JSON.parse(raw):{};}catch{d={error:raw||'استجابة غير صالحة من الخادم.'};}
-   if(d.plan)setPlan(d.plan);if(d.execution)setExecution(d.execution);
-   if(d.approval){setApproval(d.approval);setLogs(x=>[...x,{id:Date.now()+4,role:'agent',text:'مطلوب موافقة: '+d.approval.reason}]);return;}
-   if(!r.ok||!d.success)throw new Error(d.error||d.execution?.message||'فشل تنفيذ الأمر على الخادم.');
-   const summary=[d.assistantMessage||d.execution?.message||'اكتمل التنفيذ.',...(d.execution?.observations||[]).map((o:any)=>(o.ok?'✓ ':'✗ ')+o.summary)].join('\\n');
-   setLogs(x=>[...x,{id:Date.now()+4,role:'agent',text:summary}]);await refreshAll();
-  }catch(e){setLogs(x=>[...x,{id:Date.now()+5,role:'agent',text:'خطأ أثناء تنفيذ الأمر: '+(e instanceof Error?e.message:'حدث خطأ غير معروف.')}]);}
-  finally{setSending(false);if(!startStatus)setStartStatus('');}
+   const r=await apiFetch(api+'/api/agent',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:text,projectId})});
+   const d=await json(r);
+   if(d.approval){setApproval(d.approval);setMessages(x=>[...x,{id:Date.now()+1,role:'agent',text:'أحتاج موافقتك قبل تنفيذ العملية الحساسة: '+d.approval.reason}]);return;}
+   if(!r.ok||!d.success)throw new Error(d.error||'فشل التنفيذ.');
+   const obs=(d.execution?.observations||[]).map((o:any)=>(o.ok?'✓ ':'✗ ')+(o.summary||'')).join('\n');
+   setMessages(x=>[...x,{id:Date.now()+1,role:'agent',text:d.assistantMessage||d.execution?.message||'اكتملت المهمة.'+(obs?'\n'+obs:'')}]);
+   setLogs(x=>[new Date().toLocaleTimeString()+' — '+(d.assistantMessage||d.execution?.message||'اكتملت المهمة.'),...x].slice(0,30));
+  }catch(e){setMessages(x=>[...x,{id:Date.now()+1,role:'agent',text:'✗ '+(e instanceof Error?e.message:'حدث خطأ')}]);}
+  finally{setSending(false);}
  }
- async function runTerminal(){
-  if(!projectId||!terminalCommand.trim())return;setTerminalOut('جاري التنفيذ...');
-  try{const args=terminalArgs.trim()?terminalArgs.trim().split(/\s+/):[];const r=await apiFetch(base+'/terminal',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:terminalCommand.trim(),args})});const d=await r.json();setTerminalOut((d.result?.stdout||'')+(d.result?.stderr?'\n'+d.result.stderr:'')+(d.error?'\n'+d.error:''));await refreshAll();}catch(e){setTerminalOut(e instanceof Error?e.message:'تعذر تنفيذ الأمر.');}
+ async function startPreview(){
+  if(!projectId)return Alert.alert('المشروع','اختر مشروعًا أولًا.');
+  setPreviewBusy(true);try{const r=await apiFetch(base+'/preview/start',{method:'POST'});const d=await json(r);if(!r.ok)throw new Error(d.error||'تعذر تشغيل المعاينة.');const u=api+d.preview.urlPath+'?token='+encodeURIComponent(d.preview.token);setPreviewUrl(u);}catch(e){Alert.alert('المعاينة',e instanceof Error?e.message:'تعذر تشغيل المعاينة.')}finally{setPreviewBusy(false);}
  }
- async function addWorkflowNode(type:string){setWorkflowNodes(x=>[...x,{id:'node-'+Date.now()+'-'+x.length,type,config:type==='RunCommand'?{command:'npm',args:['test']}:type==='Log'?{message:'BMZ AI workflow'}:{}}]);}
- async function saveWorkflow(){if(!projectId||!workflowNodes.length)return;setWorkflowBusy(true);try{const edges=workflowNodes.slice(1).map((n,i)=>({from:workflowNodes[i].id,to:n.id}));const workflow={id:'',name:workflowName,nodes:workflowNodes,edges};const r=await apiFetch(apiBase+'/api/workflows',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({projectId,name:workflowName,workflow})});const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر حفظ Workflow.');setWorkflows(x=>[...x,d.workflow]);}catch(e){Alert.alert('Workflow',e instanceof Error?e.message:'تعذر حفظ Workflow.')}finally{setWorkflowBusy(false)}}
- async function runSavedWorkflow(item:any){if(!projectId)return;setWorkflowBusy(true);try{const r=await apiFetch(apiBase+'/api/workflows/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({projectId,workflowId:item.id})});const d=await r.json();setLogs(x=>[...x,{id:Date.now(),role:'agent',text:r.ok?'✓ تم تنفيذ Workflow فعليًا.\n'+JSON.stringify(d.result):'✗ '+(d.error||'فشل التنفيذ.')}]);}finally{setWorkflowBusy(false)}}
- async function connectGithub(){try{const r=await apiFetch(apiBase+'/api/github/oauth/start');const d=await r.json();if(!r.ok)throw new Error(d.error||'تعذر بدء ربط GitHub.');await Linking.openURL(d.url);}catch(e){Alert.alert('GitHub',e instanceof Error?e.message:'تعذر بدء الربط.');}}
- async function refreshGithubStatus(){try{const r=await apiFetch(apiBase+'/api/github/oauth/status');const d=await r.json();if(r.ok)setCommitStatus(d.connected?'GitHub مرتبط.':'GitHub غير مرتبط.');}catch{}}
- async function commit(){if(!projectId)return;const r=await apiFetch(base+'/github/commit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:'BMZ AI: تحديث المشروع'})});const d=await r.json();if(d.approval){setApproval(d.approval);setCommitStatus('تحتاج العملية إلى موافقة.');return;}setCommitStatus(r.ok?'تم إرسال التغييرات إلى GitHub.':'خطأ: '+(d.error||'فشل Commit'));await refreshBuild();}
- async function approve(){if(!approval)return;const id=approval.id;const r=await apiFetch(apiBase+'/api/approvals/'+id+'/approve',{method:'POST'});if(!r.ok){Alert.alert('خطأ','تعذر تسجيل الموافقة.');return;}setApproval(null);const last=logs.filter(x=>x.role==='user').at(-1)?.text;if(last)await send(last,id);}
- const quick=[
-  ['🔍 فحص المشروع','افحص المشروع كاملًا، اقرأ الملفات المهمة، واكتشف المشاكل دون حذف شيء.'],
-  ['🛠 إصلاح','افحص الأخطاء الحالية وأصلحها ثم اختبر النتيجة.'],
-  ['🧪 اختبار','اختبر المشروع وشغّل الاختبارات المناسبة وأصلح أي خطأ يظهر.'],
-  ['📱 Android','افحص تطبيق Android وابنه ثم تحقق من APK.'],
-  ['📁 الملفات','اعرض بنية الملفات المهمة واشرح ما يحتاج إلى تعديل.'],
- ];
- const nav:[Tab,string][]=[['home','الرئيسية'],['files','الملفات'],['terminal','الأوامر'],['plan','خطة التنفيذ'],['logs','السجل'],['preview','المعاينة'],['memory','الذاكرة'],['workflows','سير العمل'],['integrations','التكاملات'],['settings','الإعدادات']];
- const selectedContent=selected?code:'';
- if(booting)return <SafeAreaView style={s.safe}><View style={s.auth}><Text style={s.brand}>BMZ AI</Text><Text style={s.hero}>جاري تشغيل BMZ AI</Text><Text style={s.heroSub}>يتم تفعيل هذا الهاتف تلقائيًا. لا يوجد تسجيل دخول أو إنشاء حساب.</Text></View></SafeAreaView>;
- if(!token)return <SafeAreaView style={s.safe}><ScrollView contentContainerStyle={s.auth}><Text style={s.brand}>BMZ AI</Text><Text style={s.hero}>تعذر الاتصال بالخادم</Text><Text style={s.heroSub}>{connectionError||'تحقق من عنوان Backend واتصال الإنترنت.'}</Text><TextInput style={s.input} value={apiBase} onChangeText={updateApiBase} placeholder="عنوان Backend عبر HTTPS" placeholderTextColor="#71857D" autoCapitalize="none" autoCorrect={false} keyboardType="url"/><Pressable style={s.primary} onPress={()=>{setBooting(true);setConnectionError('');void (async()=>{try{const deviceId=(await SecureStore.getItemAsync('bmz_device_id'))||('android-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,14));await SecureStore.setItemAsync('bmz_device_id',deviceId);await activateDevice(normalizeApiUrl(apiBase),deviceId);}catch(e){setConnectionError(e instanceof Error?e.message:'تعذر الاتصال بالخادم.')}finally{setBooting(false);}})();}}><Text style={s.primaryText}>إعادة الاتصال</Text></Pressable></ScrollView></SafeAreaView>;
- return <SafeAreaView style={s.safe}><StatusBar barStyle="light-content" backgroundColor="#07110D"/><KeyboardAvoidingView style={s.fill} behavior={Platform.OS==='ios'?'padding':undefined}>
-  <View style={s.top}><View><Text style={s.brand}>BMZ AI</Text><Text style={s.subtitle}>وكيل تطوير حقيقي — خطط، نفّذ، اختبر، أصلح</Text></View><View style={s.statusDot}/></View>
-  {!projectId?<ScrollView contentContainerStyle={s.start}>
-    <Text style={s.hero}>ماذا تريد أن نبني؟</Text><Text style={s.heroSub}>اكتب طلبك بلغة طبيعية، وBMZ AI يتولى التخطيط والتنفيذ داخل Sandbox.</Text>
-    <TextInput value={apiBase} onChangeText={updateApiBase} autoCapitalize="none" autoCorrect={false} placeholder="عنوان Backend" placeholderTextColor="#718078" style={s.input}/>
-    <TextInput value={message} onChangeText={setMessage} placeholder="اكتب الأمر هنا... مثال: افحص المشروع وأصلح كل الأخطاء ثم اختبره" placeholderTextColor="#718078" style={s.command} multiline/>
-    <Pressable onPress={()=>void send()} disabled={!message.trim()||sending} style={s.primary}><Text style={s.primaryText}>{sending?'جارٍ التنفيذ…':'▶ تنفيذ الأمر'}</Text></Pressable>
-    {(sending||startStatus||logs.length>0)&&<View style={s.card}><Text style={s.cardTitle}>حالة التنفيذ</Text>{startStatus?<Text style={s.cardText}>{startStatus}</Text>:null}{logs.slice(-4).map(m=><Text key={m.id} style={s.muted}>{m.role==='user'?'أنت: ':'BMZ AI: '}{m.text}</Text>)}</View>}
-    <View style={s.quick}>{quick.map(([t,v])=><Pressable key={t} onPress={()=>setMessage(v)} style={s.chip}><Text style={s.chipText}>{t}</Text></Pressable>)}</View>
-    {projects.length>0&&<><Text style={s.section}>مشاريعك</Text>{projects.map(p=><Pressable key={p.id} onPress={()=>selectProject(p.id)} style={s.project}><Text style={s.projectName}>{p.name}</Text><Text style={s.projectRepo}>{p.repositoryUrl||'مشروع محلي'}</Text></Pressable>)}</>}
-    <Pressable onPress={()=>setShowNewProject(v=>!v)} style={s.secondary}><Text style={s.secondaryText}>{showNewProject?'إلغاء':'＋ إنشاء مشروع جديد'}</Text></Pressable>
-    {showNewProject&&<View style={s.card}><TextInput value={projectName} onChangeText={setProjectName} placeholder="اسم المشروع" placeholderTextColor="#718078" style={s.input}/><TextInput value={repo} onChangeText={setRepo} placeholder="رابط GitHub اختياري" placeholderTextColor="#718078" style={s.input}/><Pressable onPress={()=>void ensureProject()} style={s.primary}><Text style={s.primaryText}>إنشاء وفتح المشروع</Text></Pressable></View>}
-  </ScrollView>:
-  <>
-   <View style={s.projectBar}><Text style={s.projectTitle}>{projects.find(p=>p.id===projectId)?.name||'المشروع الحالي'}</Text><Pressable onPress={()=>setProjectId(null)}><Text style={s.change}>تغيير المشروع</Text></Pressable></View>
-   <View style={s.nav}>{nav.map(([id,label])=><Pressable key={id} onPress={()=>setTab(id)} style={[s.navItem,tab===id&&s.navActive]}><Text style={[s.navText,tab===id&&s.navTextActive]}>{label}</Text></Pressable>)}</View>
-   <View style={[s.content,width>=720&&s.splitContent]}>
-    <View style={width>=720?s.leftPane:s.content}>
+ async function openSite(){
+  const u=normalizeUrl(siteUrl);setSiteBusy(true);try{
+   const r=await apiFetch(api+'/api/browser/open',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:siteSession||'mobile-'+Date.now(),url:u,allowedDomains:[new URL(u).hostname]})});
+   const d=await json(r);if(!r.ok)throw new Error(d.error||'تعذر فتح الموقع.');const sid=d.result?.sessionId||d.result?.id||siteSession||'mobile';setSiteSession(sid);setSiteText(JSON.stringify(d.result,null,2));setLogs(x=>['🌐 فتح الموقع: '+u,...x].slice(0,30));
+  }catch(e){Alert.alert('Browser Agent',e instanceof Error?e.message:'فشل فتح الموقع.')}finally{setSiteBusy(false);}
+ }
+ async function readSite(){if(!siteSession)return;setSiteBusy(true);try{const r=await apiFetch(api+'/api/browser/read',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:siteSession})});const d=await json(r);if(!r.ok)throw new Error(d.error||'تعذر قراءة الصفحة.');setSiteText(JSON.stringify(d.result,null,2));}catch(e){Alert.alert('Browser Agent',e instanceof Error?e.message:'فشل القراءة.')}finally{setSiteBusy(false);}}
+ async function grant(permission:string){try{const r=await apiFetch(api+'/api/permissions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({permission,projectId})});const d=await json(r);if(!r.ok)throw new Error(d.error||'تعذر منح الصلاحية.');setPermissions(x=>[...x,d.permission]);}catch(e){Alert.alert('الصلاحيات',e instanceof Error?e.message:'تعذر منح الصلاحية.')}}
+ async function connectMeta(){try{const r=await apiFetch(api+'/api/integrations/meta/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pageAccessToken:fbToken,whatsappAccessToken:waToken,whatsappPhoneNumberId:waPhone,verifyToken})});const d=await json(r);if(!r.ok)throw new Error(d.error||'تعذر ربط Meta.');setLogs(x=>['✓ تم حفظ إعدادات Facebook/WhatsApp. Webhook: '+(d.webhookToken||''),...x]);Alert.alert('تم الربط','تم حفظ بيانات Meta في الخادم. يلزم إعداد Webhook في Meta لاختبار الرسائل الواردة.');}catch(e){Alert.alert('Meta',e instanceof Error?e.message:'تعذر الربط.')}}
+ async function sendSocial(channel:'facebook'|'whatsapp'){if(!recipient.trim()||!socialText.trim())return;setSocialBusy(true);try{const path=channel==='facebook'?'/api/integrations/meta/facebook/send':'/api/integrations/meta/whatsapp/send';const body=channel==='facebook'?{recipientId:recipient,text:socialText}:{to:recipient,text:socialText};const r=await apiFetch(api+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await json(r);if(!r.ok)throw new Error(d.error||'فشل إرسال الرسالة.');setLogs(x=>['✓ أُرسلت رسالة '+channel,...x]);}catch(e){Alert.alert(channel,e instanceof Error?e.message:'فشل الإرسال.')}finally{setSocialBusy(false);}}
+ async function approve(){if(!approval)return;const r=await apiFetch(api+'/api/approvals/'+approval.id+'/approve',{method:'POST'});if(r.ok){setApproval(null);Alert.alert('تمت الموافقة','أعد إرسال المهمة لتنفيذها.');}}
 
-    {tab==='home'&&<ScrollView contentContainerStyle={s.pad}><Text style={s.pageTitle}>مركز الأوامر</Text><Text style={s.pageSub}>اكتب ما تريد من BMZ AI تنفيذه. لا تحتاج إلى معرفة البرمجة.</Text><TextInput value={message} onChangeText={setMessage} placeholder="مثال: افحص المشروع بالكامل ثم أصلح كل الأخطاء وابنِ APK" placeholderTextColor="#718078" style={s.command} multiline/><Pressable onPress={()=>void send()} disabled={!message.trim()||sending} style={s.primary}><Text style={s.primaryText}>{sending?'جارٍ العمل…':'▶ تنفيذ الأمر'}</Text></Pressable><View style={s.quick}>{quick.map(([t,v])=><Pressable key={t} onPress={()=>{setMessage(v);setTab('home')}} style={s.chip}><Text style={s.chipText}>{t}</Text></Pressable>)}</View>{execution&&<View style={s.card}><Text style={s.cardTitle}>آخر نتيجة</Text><Text style={s.cardText}>{execution.message}</Text><Text style={s.muted}>العمليات: {execution.iterations}</Text></View>}<View style={s.row}><Pressable onPress={()=>void refreshBuild()} style={s.secondary}><Text style={s.secondaryText}>تحديث حالة APK</Text></Pressable>{artifactAvailable&&<Pressable onPress={()=>void Linking.openURL(base+'/github/build/apk')} style={s.primarySmall}><Text style={s.primaryText}>تنزيل APK</Text></Pressable>}</View><Text style={s.status}>{buildStatus}</Text></ScrollView>}
-    {tab==='files'&&<View style={s.flex}><View style={s.fileHeader}><Text style={s.pageTitle}>ملفات المشروع ({files.length})</Text><Pressable onPress={()=>void refreshFiles()}><Text style={s.change}>تحديث</Text></Pressable></View><ScrollView>{files.map(p=><Pressable key={p} onPress={()=>void openFile(p)} style={s.file}><Text style={s.fileText}>{p}</Text></Pressable>)}</ScrollView>{selected&&<View style={s.editorBox}><Text style={s.cardTitle}>{selected}</Text><TextInput value={selectedContent} onChangeText={setCode} multiline style={s.editor} textAlign="left"/><Pressable onPress={()=>void saveFile()} style={s.primarySmall}><Text style={s.primaryText}>حفظ الملف</Text></Pressable></View>}</View>}
-    {tab==='terminal'&&<ScrollView contentContainerStyle={s.pad}><Text style={s.pageTitle}>Terminal</Text><Text style={s.pageSub}>تنفيذ أوامر مسموحة داخل Sandbox للمشروع الحالي.</Text><TextInput value={terminalCommand} onChangeText={setTerminalCommand} placeholder="الأمر: npm / npx / tsc / gradle" placeholderTextColor="#718078" style={s.input}/><TextInput value={terminalArgs} onChangeText={setTerminalArgs} placeholder="المعطيات: run build" placeholderTextColor="#718078" style={s.input}/><View style={s.quick}>{['npm run build','npm test','npm install','npx tsc','gradle --version'].map(x=><Pressable key={x} onPress={()=>{const a=x.split(' ');setTerminalCommand(a.shift()||'');setTerminalArgs(a.join(' '))}} style={s.chip}><Text style={s.chipText}>{x}</Text></Pressable>)}</View><Pressable onPress={()=>void runTerminal()} style={s.primary}><Text style={s.primaryText}>▶ تنفيذ في Sandbox</Text></Pressable><Text style={s.terminal}>{terminalOut||'ستظهر المخرجات هنا…'}</Text></ScrollView>}
-    {tab==='plan'&&<ScrollView contentContainerStyle={s.pad}><Text style={s.pageTitle}>خطة التنفيذ</Text>{plan?<><Text style={s.cardText}>{plan.goal}</Text>{plan.steps.map((x,i)=><View key={x.id} style={s.step}><Text style={s.stepNum}>{i+1}</Text><View style={s.flex}><Text style={s.stepTitle}>{x.title}</Text><Text style={s.muted}>{x.status}</Text></View></View>)}</>:<Text style={s.empty}>أرسل أمرًا ليُنشئ BMZ AI خطة تنفيذ.</Text>}</ScrollView>}
-    {tab==='logs'&&<ScrollView contentContainerStyle={s.pad}>{logs.map(m=><View key={m.id} style={[s.log,m.role==='user'&&s.userLog]}><Text style={s.muted}>{m.role==='user'?'أنت':'BMZ AI'}</Text><Text style={s.logText}>{m.text}</Text></View>)}{executions.map((x,i)=><View key={'e'+i} style={s.log}><Text style={s.muted}>{x.status||'execution'}</Text><Text style={s.logText}>{x.message||x.summary||JSON.stringify(x)}</Text></View>)}</ScrollView>}
-    {tab==='preview'&&<View style={s.preview}><Text style={s.previewText}>{previewUrl?'تم تشغيل Preview حقيقي داخل Sandbox.':'شغّل التطبيق داخل Sandbox لفتح Preview تفاعلي.'}</Text>{projectId&&<Pressable onPress={()=>void startPreview()} style={s.primarySmall}><Text style={s.primaryText}>{previewUrl?'إعادة فتح Preview':'تشغيل Preview'}</Text></Pressable>}{previewUrl&&<Pressable onPress={()=>void Linking.openURL(previewUrl)} style={s.secondary}><Text style={s.secondaryText}>فتح Preview التفاعلي</Text></Pressable>}</View>}
-    {tab==='workflows'&&<ScrollView contentContainerStyle={s.pad}><Text style={s.pageTitle}>Workflow Automation</Text><Text style={s.pageSub}>منشئ Workflow فعلي؛ العقد التي تضيفها تُحفظ وتُنفذ في Backend.</Text><TextInput value={workflowName} onChangeText={setWorkflowName} placeholder="اسم Workflow" placeholderTextColor="#718078" style={s.input}/><Text style={s.cardTitle}>إضافة عقدة</Text><View style={s.quick}>{['ManualTrigger','RunCommand','ReadFile','WriteFile','DeleteFile','Condition','Delay','HttpRequest','Log'].map(type=><Pressable key={type} onPress={()=>void addWorkflowNode(type)} style={s.chip}><Text style={s.chipText}>＋ {type}</Text></Pressable>)}</View>{workflowNodes.map((n,i)=><View key={n.id} style={s.step}><Text style={s.stepNum}>{i+1}</Text><View style={s.flex}><Text style={s.stepTitle}>{n.type}</Text><Text style={s.muted}>{i>0?'متصل بالعقدة السابقة':'بداية التدفق'}</Text></View></View>)}<Pressable disabled={workflowBusy||!workflowNodes.length} onPress={()=>void saveWorkflow()} style={s.primary}><Text style={s.primaryText}>حفظ Workflow وتشغيله لاحقًا</Text></Pressable><Text style={s.cardTitle}>Workflows المحفوظة</Text>{workflows.map(w=><View key={w.id} style={s.card}><Text style={s.cardTitle}>{w.name}</Text><Text style={s.muted}>{w.workflow?.nodes?.length||0} عقد</Text><Pressable onPress={()=>void runSavedWorkflow(w)} style={s.secondary}><Text style={s.secondaryText}>▶ تشغيل فعلي</Text></Pressable></View>)}</ScrollView>}
-    {tab==='integrations'&&<ScrollView contentContainerStyle={s.pad}><Text style={s.pageTitle}>التكاملات والصلاحيات</Text><Text style={s.pageSub}>كل تكامل وصلاحية يُدار من Backend ولا يُمنح للوكيل تلقائيًا.</Text>{integrations.map(x=><View key={x.id} style={s.card}><Text style={s.cardTitle}>{x.name}</Text><Text style={s.muted}>{(x.capabilities||[]).join(' • ')}</Text></View>)}<Text style={s.cardTitle}>الصلاحيات الحالية</Text>{permissions.map(x=><View key={x.id} style={s.step}><Text style={s.stepNum}>✓</Text><View style={s.flex}><Text style={s.stepTitle}>{x.permission}</Text><Text style={s.muted}>{x.scope||'عام'}</Text></View></View>)}</ScrollView>}
-    {tab==='memory'&&<ScrollView contentContainerStyle={s.pad}><Text style={s.pageTitle}>ذاكرة المشروع</Text>{memory.length?memory.map((x,i)=><View key={i} style={s.log}><Text style={s.muted}>{x.kind||x.type||'memory'}</Text><Text style={s.logText}>{x.content||x.value||JSON.stringify(x)}</Text></View>):<Text style={s.empty}>لا توجد ذكريات محفوظة بعد.</Text>}</ScrollView>}
-    {tab==='settings'&&<ScrollView contentContainerStyle={s.pad}><Text style={s.pageTitle}>الإعدادات</Text><View style={s.card}><Text style={s.cardTitle}>Backend</Text><TextInput value={apiBase} onChangeText={setApiBase} autoCapitalize="none" style={s.input}/><Text style={s.muted}>يمكنك تغيير عنوان الخادم دون إعادة بناء التطبيق.</Text></View><View style={s.card}><Text style={s.cardTitle}>GitHub</Text><Text style={s.cardText}>{projects.find(p=>p.id===projectId)?.repositoryUrl||'غير مرتبط'}</Text><Pressable onPress={()=>void connectGithub()} style={s.secondary}><Text style={s.secondaryText}>ربط حساب GitHub عبر OAuth</Text></Pressable><Pressable onPress={()=>void refreshGithubStatus()} style={s.secondary}><Text style={s.secondaryText}>فحص حالة GitHub</Text></Pressable><Pressable onPress={()=>void commit()} style={s.secondary}><Text style={s.secondaryText}>حفظ التغييرات إلى GitHub</Text></Pressable><Text style={s.status}>{commitStatus}</Text></View><View style={s.card}><Text style={s.cardTitle}>الأمان</Text><Text style={s.cardText}>العمليات الحساسة مثل Commit تحتاج إلى موافقة صريحة. التنفيذ المباشر خارج Sandbox غير مفعّل.</Text></View></ScrollView>}
+ const nav:[Mode,string,string][]=[['chat','الموظف','✦'],['site','المواقع','⌘'],['social','التواصل','◉'],['control','التحكم','⚙']];
+ const permissionNames:[string,string][]=[['BROWSER_AUTOMATION','Browser Agent'],['READ_PROJECT','قراءة المشروع'],['WRITE_PROJECT','تعديل الملفات'],['RUN_COMMAND','تشغيل الأوامر'],['NETWORK_ACCESS','الوصول للشبكة'],['SEND_MESSAGE','إرسال رسائل العملاء'],['GITHUB_WRITE','كتابة GitHub'],['SCHEDULE_WORKFLOW','التشغيل المجدول']];
+
+ if(boot)return <SafeAreaView style={s.root}><View style={s.center}><Text style={s.logo}>BMZ</Text><Text style={s.title}>جاري تشغيل الموظف الذكي</Text><Text style={s.muted}>تهيئة مساحة العمل والوكيل...</Text></View></SafeAreaView>;
+ if(!token)return <SafeAreaView style={s.root}><View style={s.center}><Text style={s.logo}>BMZ</Text><Text style={s.title}>تعذر الاتصال</Text><Text style={s.muted}>{error}</Text><TextInput value={api} onChangeText={setApi} style={s.input} autoCapitalize="none"/><Pressable style={s.button} onPress={()=>{void SecureStore.setItemAsync('bmz_api_base',api);setToken(null);setBoot(true);}}><Text style={s.buttonText}>إعادة المحاولة</Text></Pressable></View></SafeAreaView>;
+
+ return <SafeAreaView style={s.root}><StatusBar barStyle="light-content"/><KeyboardAvoidingView style={s.flex} behavior={Platform.OS==='ios'?'padding':undefined}>
+  <View style={s.header}><View><Text style={s.logoSmall}>BMZ AI</Text><Text style={s.sub}>الموظف الافتراضي • {currentProject?.name||'مساحة العمل'}</Text></View><View style={s.online}><View style={s.dot}/><Text style={s.onlineText}>متصل</Text></View></View>
+  <View style={s.body}>
+   <View style={s.rail}>{nav.map(([id,label,icon])=><Pressable key={id} onPress={()=>setMode(id)} style={[s.railItem,mode===id&&s.railActive]}><Text style={s.railIcon}>{icon}</Text><Text style={s.railText}>{label}</Text></Pressable>)}</View>
+   <View style={s.workspace}>
+    <View style={s.workspaceTop}><View><Text style={s.workspaceTitle}>{mode==='chat'?'الموظف الذكي':mode==='site'?'إدارة المواقع':mode==='social'?'WhatsApp و Facebook':'صلاحيات وتشغيل الوكيل'}</Text><Text style={s.sub}>نفّذ المهام من نفس الشاشة، وراقب ما يفعله الوكيل لحظة بلحظة.</Text></View><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.projectRow}>{projects.map(p=><Pressable key={p.id} onPress={()=>setProjectId(p.id)} style={[s.projectPill,p.id===projectId&&s.projectOn]}><Text style={s.projectText}>{p.name}</Text></Pressable>)}</ScrollView></View>
+    <View style={s.split}>
+     <View style={s.left}>
+      {mode==='chat'&&<View style={s.chatWrap}><ScrollView contentContainerStyle={s.chatScroll}>{messages.length===0&&<View style={s.welcome}><Text style={s.welcomeTitle}>ماذا تريد أن يدير BMZ AI؟</Text><Text style={s.welcomeSub}>الموقع، الطلبات، العملاء، GitHub، المهام المتكررة، والعمليات التي تمنحه صلاحيتها.</Text><View style={s.suggestions}>{['حلّل موقعي وأخبرني بالمشاكل','افتح لوحة موقعي وافحص الطلبات','راجع المشروع وأصلح الأخطاء','أنشئ نظام متابعة لرسائل العملاء'].map(x=><Pressable key={x} onPress={()=>setMessage(x)} style={s.suggestion}><Text style={s.suggestionText}>{x}</Text></Pressable>)}</View></View>}{messages.map(m=><View key={m.id} style={[s.bubble,m.role==='user'?s.userBubble:s.agentBubble]}><Text style={s.bubbleRole}>{m.role==='user'?'أنت':'BMZ AI'}</Text><Text style={s.bubbleText}>{m.text}</Text></View>)}</ScrollView><View style={s.composer}><TextInput value={message} onChangeText={setMessage} multiline placeholder="اطلب من BMZ AI تنفيذ مهمة..." placeholderTextColor="#64748B" style={s.message}/><Pressable onPress={()=>void send()} disabled={sending} style={s.send}><Text style={s.sendText}>{sending?'…':'↑'}</Text></Pressable></View></View>}
+      {mode==='site'&&<ScrollView contentContainerStyle={s.panel}><Text style={s.panelTitle}>Browser Agent</Text><Text style={s.panelSub}>اربط موقعك أو لوحة الإدارة، ثم دع الوكيل يفتح الصفحات ويقرأها وينفذ خطوات مسموحة.</Text><TextInput value={siteUrl} onChangeText={setSiteUrl} placeholder="https://example.com أو رابط لوحة الإدارة" placeholderTextColor="#64748B" style={s.input}/><View style={s.row}><Pressable style={s.buttonFlex} onPress={()=>void openSite()} disabled={siteBusy}><Text style={s.buttonText}>{siteBusy?'جاري الفتح…':'فتح الموقع'}</Text></Pressable><Pressable style={s.outlineFlex} onPress={()=>void readSite()} disabled={!siteSession}><Text style={s.outlineText}>قراءة الصفحة</Text></Pressable></View><View style={s.card}><Text style={s.cardTitle}>جلسة المتصفح</Text><Text style={s.muted}>{siteSession||'لم تبدأ بعد'}</Text><Text style={s.code}>{siteText||'ستظهر هنا الصفحة/البيانات التي قرأها الوكيل.'}</Text></View><Text style={s.panelTitle}>ما يمكن أن يبنيه الوكيل بعد منح الصلاحية</Text>{['فحص المنتجات والأسعار','قراءة الطلبات والحجوزات','تعبئة نماذج لوحة الإدارة','تنفيذ خطوات متتابعة مع سجل Trace'].map(x=><View key={x} style={s.feature}><Text style={s.featureIcon}>✓</Text><Text style={s.featureText}>{x}</Text></View>)}</ScrollView>}
+      {mode==='social'&&<ScrollView contentContainerStyle={s.panel}><Text style={s.panelTitle}>مركز العملاء</Text><Text style={s.panelSub}>ربط Facebook Pages وWhatsApp Cloud API مع ذاكرة BMZ AI، ثم إرسال الرسائل من الخادم.</Text><TextInput value={fbToken} onChangeText={setFbToken} placeholder="Facebook Page Access Token" placeholderTextColor="#64748B" style={s.input} secureTextEntry/><TextInput value={waToken} onChangeText={setWaToken} placeholder="WhatsApp Access Token" placeholderTextColor="#64748B" style={s.input} secureTextEntry/><TextInput value={waPhone} onChangeText={setWaPhone} placeholder="WhatsApp Phone Number ID" placeholderTextColor="#64748B" style={s.input}/><TextInput value={verifyToken} onChangeText={setVerifyToken} placeholder="Webhook Verify Token" placeholderTextColor="#64748B" style={s.input} secureTextEntry/><Pressable style={s.button} onPress={()=>void connectMeta()}><Text style={s.buttonText}>حفظ وربط Facebook + WhatsApp</Text></Pressable><View style={s.divider}/><Text style={s.cardTitle}>إرسال رسالة</Text><TextInput value={recipient} onChangeText={setRecipient} placeholder="معرّف المستلم / رقم WhatsApp" placeholderTextColor="#64748B" style={s.input}/><TextInput value={socialText} onChangeText={setSocialText} placeholder="نص الرسالة" placeholderTextColor="#64748B" style={[s.input,s.textArea]}/><View style={s.row}><Pressable style={s.buttonFlex} onPress={()=>void sendSocial('whatsapp')} disabled={socialBusy}><Text style={s.buttonText}>إرسال WhatsApp</Text></Pressable><Pressable style={s.outlineFlex} onPress={()=>void sendSocial('facebook')} disabled={socialBusy}><Text style={s.outlineText}>إرسال Facebook</Text></Pressable></View><View style={s.card}><Text style={s.cardTitle}>التكاملات المتاحة</Text>{integrations.map(i=><Text key={i.id} style={s.featureText}>• {i.name} — {(i.capabilities||[]).join(', ')}</Text>)}</View></ScrollView>}
+      {mode==='control'&&<ScrollView contentContainerStyle={s.panel}><Text style={s.panelTitle}>مركز التحكم والصلاحيات</Text><Text style={s.panelSub}>هذه صلاحيات فعلية للـBackend والـBrowser Agent. لا يتم منح العمليات الحساسة تلقائيًا.</Text>{permissionNames.map(([key,label])=>{const active=permissions.some(p=>p.permission===key);return <Pressable key={key} onPress={()=>!active&&void grant(key)} style={[s.permission,active&&s.permissionOn]}><View style={[s.permDot,active&&s.permDotOn]}/><View style={s.flex}><Text style={s.permissionTitle}>{label}</Text><Text style={s.muted}>{active?'مفعّلة':'اضغط لتفعيلها'}</Text></View><Text style={s.permissionState}>{active?'ON':'OFF'}</Text></Pressable>})}<View style={s.card}><Text style={s.cardTitle}>التحكم في الهاتف</Text><Text style={s.cardText}>BMZ AI لا يحصل تلقائيًا على تحكم نظام Android الكامل. التحكم الآمن هنا يتم عبر صلاحيات التطبيق، المتصفح، الشبكة، والعمليات المصرّح بها. التحكم الكامل بتطبيقات أخرى يحتاج خدمة Android Accessibility/Device APIs مخصصة وسيتم بناؤها كطبقة منفصلة، وليس زرًا وهميًا.</Text></View><Text style={s.panelTitle}>آخر العمليات</Text>{logs.map((x,i)=><Text key={i} style={s.log}>{x}</Text>)}</ScrollView>}
+     </View>
+     <View style={s.right}>
+      <View style={s.previewHead}><View><Text style={s.previewTitle}>Live Workspace</Text><Text style={s.muted}>{previewUrl?'المعاينة تعمل داخل التطبيق':'المعاينة الحية للمشروع'}</Text></View><Pressable onPress={()=>void startPreview()} style={s.previewButton}><Text style={s.previewButtonText}>{previewBusy?'…':'تشغيل'}</Text></Pressable></View>
+      {previewUrl?<WebView source={{uri:previewUrl}} style={s.web} originWhitelist={['*']} javaScriptEnabled domStorageEnabled/>:<View style={s.previewEmpty}><Text style={s.previewIcon}>◈</Text><Text style={s.previewEmptyTitle}>المعاينة الحية</Text><Text style={s.previewEmptyText}>شغّل Preview ليظهر الموقع هنا. ستبقى الدردشة وأدوات الوكيل بجانبه.</Text><Pressable onPress={()=>void startPreview()} style={s.button}><Text style={s.buttonText}>تشغيل Live Preview</Text></Pressable></View>}
+     </View>
+    </View>
    </View>
-    {width>=720&&<View style={s.previewPane}>
-      <View style={s.previewHeader}><Text style={s.previewTitle}>المعاينة الحية</Text><Text style={s.previewUrl}>{previewUrl||'لا توجد معاينة بعد'}</Text></View>
-      {previewUrl?<WebView source={{uri:previewUrl}} style={s.webview} originWhitelist={['*']} javaScriptEnabled domStorageEnabled startInLoadingState/>:<View style={s.previewEmpty}><Text style={s.previewEmptyTitle}>Live Preview</Text><Text style={s.previewEmptyText}>شغّل Preview من تبويب المعاينة لمشاهدة الموقع هنا لحظة بلحظة.</Text></View>}
-    </View>}
-   </View>
-   {approval&&<View style={s.approval}><Text style={s.approvalText}>{approval.reason}</Text><Pressable onPress={()=>void approve()} style={s.primary}><Text style={s.primaryText}>موافقة وتنفيذ</Text></Pressable></View>}
-   <View style={s.composer}><TextInput value={message} onChangeText={setMessage} placeholder="اكتب أمرًا جديدًا..." placeholderTextColor="#718078" style={s.message}/><Pressable onPress={()=>void send()} disabled={!message.trim()||sending} style={s.send}><Text style={s.sendText}>↑</Text></Pressable></View>
-  </>}
- </KeyboardAvoidingView></SafeAreaView>
+  </View>
+  {approval&&<View style={s.approval}><Text style={s.approvalText}>{approval.reason}</Text><Pressable style={s.button} onPress={()=>void approve()}><Text style={s.buttonText}>موافقة</Text></Pressable></View>}
+ </KeyboardAvoidingView></SafeAreaView>;
 }
+
 const s=StyleSheet.create({
- auth:{flexGrow:1,justifyContent:'center',padding:24,backgroundColor:'#07111F'},
- error:{color:'#FF9B9B',textAlign:'center',marginBottom:12},
- link:{color:'#67E8F9',textAlign:'center',padding:12},
- safe:{flex:1,backgroundColor:'#07111F'},
- fill:{flex:1},
- top:{paddingHorizontal:18,paddingVertical:15,borderBottomWidth:1,borderBottomColor:'#16283D',flexDirection:'row-reverse',justifyContent:'space-between',alignItems:'center',backgroundColor:'#091726'},
- brand:{color:'#F8FAFC',fontSize:25,fontWeight:'900',textAlign:'right',letterSpacing:.3},
- subtitle:{color:'#7F93AA',fontSize:11,marginTop:3,textAlign:'right'},
- statusDot:{width:9,height:9,borderRadius:5,backgroundColor:'#34D399'},
- start:{paddingHorizontal:18,paddingTop:20,paddingBottom:110},
- hero:{color:'#F8FAFC',fontSize:31,fontWeight:'900',textAlign:'right',marginTop:22,lineHeight:39},
- heroSub:{color:'#8EA3B8',fontSize:14,lineHeight:22,textAlign:'right',marginTop:8,marginBottom:20},
- pageTitle:{color:'#F8FAFC',fontSize:23,fontWeight:'900',textAlign:'right',marginBottom:6},
- pageSub:{color:'#8EA3B8',textAlign:'right',lineHeight:21,marginBottom:16},
- projectBar:{paddingHorizontal:14,paddingVertical:11,borderBottomWidth:1,borderBottomColor:'#16283D',flexDirection:'row-reverse',justifyContent:'space-between',backgroundColor:'#0A1929'},
- projectTitle:{color:'#F8FAFC',fontWeight:'800'},
- change:{color:'#67E8F9',fontWeight:'800'},
- nav:{flexDirection:'row-reverse',borderBottomWidth:1,borderBottomColor:'#16283D',backgroundColor:'#091726'},
- navItem:{paddingHorizontal:11,paddingVertical:12},
- navActive:{borderBottomWidth:2,borderBottomColor:'#67E8F9'},
- navText:{color:'#647A91',fontSize:11,fontWeight:'700'},
- navTextActive:{color:'#F8FAFC'},
- content:{flex:1},splitContent:{flexDirection:'row-reverse'},leftPane:{flex:1,minWidth:0,borderLeftWidth:1,borderLeftColor:'#16283D'},previewPane:{flex:1,minWidth:0,backgroundColor:'#020812'},previewHeader:{padding:12,borderBottomWidth:1,borderBottomColor:'#16283D',backgroundColor:'#081523'},previewTitle:{color:'#F8FAFC',fontWeight:'900',textAlign:'right'},previewUrl:{color:'#6F849A',fontSize:9,textAlign:'right',marginTop:3},webview:{flex:1,backgroundColor:'#fff'},previewEmpty:{flex:1,justifyContent:'center',alignItems:'center',padding:30},previewEmptyTitle:{color:'#F8FAFC',fontSize:22,fontWeight:'900',marginBottom:10},previewEmptyText:{color:'#71879C',textAlign:'center',lineHeight:21},
- pad:{padding:15,paddingBottom:105},
- input:{backgroundColor:'#0C1B2B',borderWidth:1,borderColor:'#1E3A52',borderRadius:14,color:'#F8FAFC',padding:14,marginBottom:10,textAlign:'right'},
- command:{minHeight:125,backgroundColor:'#0B1A2A',borderWidth:1,borderColor:'#24506A',borderRadius:18,color:'#F8FAFC',padding:16,textAlign:'right',textAlignVertical:'top',marginBottom:11},
- primary:{backgroundColor:'#E6FFFB',borderRadius:14,padding:14,alignItems:'center',marginBottom:10,shadowOpacity:.12,shadowRadius:8},
- primarySmall:{backgroundColor:'#E6FFFB',borderRadius:12,padding:11,alignItems:'center',margin:5},
- primaryText:{color:'#07111F',fontWeight:'900'},
- secondary:{borderWidth:1,borderColor:'#27465D',backgroundColor:'#0A1929',borderRadius:13,padding:12,alignItems:'center',marginBottom:10},
- secondaryText:{color:'#D9E7F2',fontWeight:'800'},
- quick:{flexDirection:'row-reverse',flexWrap:'wrap',gap:8,marginBottom:16},
- chip:{borderWidth:1,borderColor:'#27465D',backgroundColor:'#0B1A2A',borderRadius:20,paddingHorizontal:13,paddingVertical:10},
- chipText:{color:'#C9D7E5',fontSize:11,fontWeight:'700'},
- section:{color:'#9EB3C7',fontWeight:'800',textAlign:'right',marginVertical:9},
- project:{backgroundColor:'#0B1A2A',borderWidth:1,borderColor:'#1C3449',borderRadius:15,padding:14,marginBottom:8},
- projectName:{color:'#F8FAFC',fontWeight:'800',textAlign:'right'},
- projectRepo:{color:'#6F849A',fontSize:10,textAlign:'right',marginTop:4},
- card:{backgroundColor:'#0B1A2A',borderWidth:1,borderColor:'#1C3449',borderRadius:16,padding:15,marginVertical:7},
- cardTitle:{color:'#F8FAFC',fontSize:15,fontWeight:'900',textAlign:'right',marginBottom:8},
- cardText:{color:'#CBD8E4',textAlign:'right',lineHeight:22},
- muted:{color:'#71879C',fontSize:11,marginTop:5},
- status:{color:'#7FA1B7',fontSize:11,textAlign:'center',marginVertical:6},
- row:{flexDirection:'row-reverse',gap:8},
- flex:{flex:1},
- fileHeader:{padding:13,flexDirection:'row-reverse',justifyContent:'space-between',alignItems:'center'},
- file:{padding:14,borderBottomWidth:1,borderBottomColor:'#16283D'},
- fileText:{color:'#D8E4EF',fontSize:12,textAlign:'left'},
- editorBox:{height:285,padding:10,borderTopWidth:1,borderTopColor:'#1E3A52'},
- editor:{flex:1,backgroundColor:'#06101B',color:'#E8F3FA',borderRadius:12,padding:11,fontFamily:Platform.OS==='ios'?'Menlo':'monospace',fontSize:11},
- terminal:{backgroundColor:'#030912',borderWidth:1,borderColor:'#1E3A52',borderRadius:14,color:'#B8E6F7',padding:14,minHeight:270,fontFamily:Platform.OS==='ios'?'Menlo':'monospace',marginTop:10},
- step:{flexDirection:'row-reverse',alignItems:'center',backgroundColor:'#0B1A2A',borderWidth:1,borderColor:'#1C3449',borderRadius:14,padding:13,marginVertical:5},
- stepNum:{width:30,height:30,borderRadius:15,backgroundColor:'#E6FFFB',color:'#07111F',textAlign:'center',paddingTop:6,fontWeight:'900',marginLeft:10},
- stepTitle:{color:'#E8F3FA',textAlign:'right',fontWeight:'800'},
- empty:{color:'#71879C',textAlign:'center',padding:34},
- log:{backgroundColor:'#0B1A2A',borderWidth:1,borderColor:'#1C3449',borderRadius:14,padding:13,marginBottom:8},
- userLog:{borderColor:'#2A7180'},
- logText:{color:'#DCE8F2',lineHeight:21,textAlign:'right',marginTop:5},
- preview:{flex:1,alignItems:'center',justifyContent:'center',padding:22,backgroundColor:'#081523'},
- previewText:{color:'#9DB1C3',textAlign:'center',marginBottom:15},
- approval:{padding:11,borderTopWidth:1,borderColor:'#765C20',backgroundColor:'#1A170D'},
- approvalText:{color:'#FFECC0',textAlign:'right',marginBottom:9},
- composer:{position:'absolute',bottom:0,left:0,right:0,padding:9,borderTopWidth:1,borderTopColor:'#16283D',backgroundColor:'#091726',flexDirection:'row-reverse',gap:8},
- message:{flex:1,minHeight:48,maxHeight:92,backgroundColor:'#0C1B2B',borderWidth:1,borderColor:'#27465D',borderRadius:15,color:'#F8FAFC',padding:12,textAlign:'right'},
- send:{width:48,height:48,borderRadius:14,backgroundColor:'#E6FFFB',alignItems:'center',justifyContent:'center'},
- sendText:{color:'#07111F',fontSize:23,fontWeight:'900'}
+ root:{flex:1,backgroundColor:'#060B12'},flex:{flex:1},center:{flex:1,justifyContent:'center',alignItems:'center',padding:25,backgroundColor:'#060B12'},logo:{fontSize:42,fontWeight:'900',color:'#F8FAFC',letterSpacing:4},logoSmall:{fontSize:21,fontWeight:'900',color:'#F8FAFC'},title:{fontSize:26,fontWeight:'900',color:'#F8FAFC',marginTop:15,textAlign:'center'},sub:{color:'#718096',fontSize:11,marginTop:3},muted:{color:'#718096',fontSize:11,lineHeight:18},header:{height:66,borderBottomWidth:1,borderBottomColor:'#182333',backgroundColor:'#080F18',paddingHorizontal:16,flexDirection:'row-reverse',justifyContent:'space-between',alignItems:'center'},online:{flexDirection:'row-reverse',alignItems:'center',gap:6},dot:{width:8,height:8,borderRadius:4,backgroundColor:'#34D399'},onlineText:{color:'#8BA39A',fontSize:11},body:{flex:1,flexDirection:'row-reverse'},rail:{width:76,borderLeftWidth:1,borderLeftColor:'#182333',backgroundColor:'#080F18',paddingTop:10,alignItems:'center'},railItem:{width:66,paddingVertical:11,borderRadius:14,alignItems:'center',marginBottom:5},railActive:{backgroundColor:'#122333'},railIcon:{color:'#A9F3E8',fontSize:18},railText:{color:'#728196',fontSize:10,marginTop:4,fontWeight:'700'},workspace:{flex:1,minWidth:0},workspaceTop:{padding:14,borderBottomWidth:1,borderBottomColor:'#182333',backgroundColor:'#070E17',flexDirection:'row-reverse',justifyContent:'space-between',gap:12},workspaceTitle:{color:'#F8FAFC',fontSize:19,fontWeight:'900',textAlign:'right'},projectRow:{alignItems:'center',gap:7},projectPill:{borderWidth:1,borderColor:'#203247',paddingHorizontal:11,paddingVertical:8,borderRadius:18,backgroundColor:'#0B1420'},projectOn:{borderColor:'#55DCCB',backgroundColor:'#0D2628'},projectText:{color:'#D4DFEA',fontSize:10,fontWeight:'800'},split:{flex:1,flexDirection:'row-reverse'},left:{flex:1,minWidth:0,borderLeftWidth:1,borderLeftColor:'#182333'},right:{flex:1,minWidth:0,backgroundColor:'#02060B'},chatWrap:{flex:1},chatScroll:{padding:18,paddingBottom:95},welcome:{paddingTop:20},welcomeTitle:{color:'#F8FAFC',fontSize:26,fontWeight:'900',textAlign:'right',lineHeight:34},welcomeSub:{color:'#8290A3',fontSize:13,lineHeight:21,textAlign:'right',marginTop:8,marginBottom:18},suggestions:{gap:8},suggestion:{borderWidth:1,borderColor:'#1D3043',backgroundColor:'#0A141F',borderRadius:14,padding:12},suggestionText:{color:'#BFD0DE',textAlign:'right',fontSize:12},bubble:{maxWidth:'92%',padding:13,borderRadius:16,marginBottom:10},userBubble:{alignSelf:'flex-start',backgroundColor:'#123038',borderWidth:1,borderColor:'#205C62'},agentBubble:{alignSelf:'flex-end',backgroundColor:'#0C1622',borderWidth:1,borderColor:'#1B2D40'},bubbleRole:{color:'#6E8498',fontSize:10,fontWeight:'800',marginBottom:5},bubbleText:{color:'#E5EDF5',fontSize:13,lineHeight:21,textAlign:'right'},composer:{position:'absolute',left:12,right:12,bottom:12,backgroundColor:'#0A121C',borderWidth:1,borderColor:'#203247',borderRadius:18,padding:7,flexDirection:'row-reverse',gap:7},message:{flex:1,minHeight:46,maxHeight:90,color:'#F8FAFC',paddingHorizontal:11,textAlign:'right'},send:{width:46,height:46,borderRadius:13,backgroundColor:'#D9FFF7',justifyContent:'center',alignItems:'center'},sendText:{fontSize:21,fontWeight:'900',color:'#071016'},panel:{padding:16,paddingBottom:40},panelTitle:{color:'#F8FAFC',fontSize:21,fontWeight:'900',textAlign:'right',marginBottom:6},panelSub:{color:'#8392A4',fontSize:12,lineHeight:20,textAlign:'right',marginBottom:16},input:{width:'100%',backgroundColor:'#0B1521',borderWidth:1,borderColor:'#21354A',borderRadius:13,padding:13,color:'#F8FAFC',textAlign:'right',marginBottom:9},textArea:{minHeight:95,textAlignVertical:'top'},row:{flexDirection:'row-reverse',gap:8},button:{backgroundColor:'#D9FFF7',borderRadius:13,padding:13,alignItems:'center',marginVertical:5},buttonText:{color:'#061015',fontWeight:'900',fontSize:12},buttonFlex:{flex:1,backgroundColor:'#D9FFF7',borderRadius:13,padding:13,alignItems:'center'},outlineFlex:{flex:1,borderWidth:1,borderColor:'#294258',borderRadius:13,padding:13,alignItems:'center'},outlineText:{color:'#D8E5F0',fontWeight:'800',fontSize:12},card:{backgroundColor:'#0A141F',borderWidth:1,borderColor:'#1B2D40',borderRadius:15,padding:14,marginTop:13},cardTitle:{color:'#F4F8FC',fontSize:14,fontWeight:'900',textAlign:'right',marginBottom:6},cardText:{color:'#B7C6D4',fontSize:12,lineHeight:21,textAlign:'right'},code:{color:'#9FEDE2',fontSize:10,lineHeight:17,marginTop:10,fontFamily:Platform.OS==='ios'?'Menlo':'monospace',textAlign:'left'},feature:{flexDirection:'row-reverse',alignItems:'center',padding:11,borderBottomWidth:1,borderBottomColor:'#152536'},featureIcon:{color:'#6BE7D7',fontWeight:'900',marginLeft:8},featureText:{color:'#B9C8D6',fontSize:12,textAlign:'right'},divider:{height:1,backgroundColor:'#182A3B',marginVertical:18},permission:{flexDirection:'row-reverse',alignItems:'center',borderWidth:1,borderColor:'#1B2D40',backgroundColor:'#0A141F',borderRadius:14,padding:12,marginBottom:8},permissionOn:{borderColor:'#245C59',backgroundColor:'#0C1F20'},permDot:{width:10,height:10,borderRadius:5,backgroundColor:'#354456',marginLeft:10},permDotOn:{backgroundColor:'#52DEC9'},permissionTitle:{color:'#E7EEF5',fontWeight:'800',textAlign:'right'},permissionState:{color:'#6F8295',fontSize:10,fontWeight:'900'},previewHead:{padding:13,borderBottomWidth:1,borderBottomColor:'#182333',flexDirection:'row-reverse',justifyContent:'space-between',alignItems:'center'},previewTitle:{color:'#F8FAFC',fontWeight:'900',fontSize:15},previewButton:{borderWidth:1,borderColor:'#2A4A5C',borderRadius:10,paddingHorizontal:12,paddingVertical:8},previewButtonText:{color:'#9FEDE2',fontWeight:'900',fontSize:11},web:{flex:1,backgroundColor:'#fff'},previewEmpty:{flex:1,justifyContent:'center',alignItems:'center',padding:30},previewIcon:{color:'#65E2D2',fontSize:35},previewEmptyTitle:{color:'#F8FAFC',fontSize:20,fontWeight:'900',marginTop:10},previewEmptyText:{color:'#718096',textAlign:'center',lineHeight:21,marginVertical:10},log:{color:'#7F93A7',fontSize:10,paddingVertical:5,textAlign:'right'},approval:{position:'absolute',left:10,right:10,bottom:10,backgroundColor:'#211A0C',borderWidth:1,borderColor:'#735C25',borderRadius:16,padding:13,zIndex:10},approvalText:{color:'#FFE9B0',textAlign:'right',lineHeight:20,marginBottom:5}
 });
