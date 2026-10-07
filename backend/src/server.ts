@@ -3,7 +3,7 @@ import type { AgentRequest } from '../../shared/contracts.js';
 import { handleAgentRequest } from './agent.js';
 import { createProject, getProject, listProjects } from './project-store.js';
 import { recall } from './memory-store.js';
-import { listExecutionLogs } from './execution-store.js';
+import { addExecutionLog, listExecutionLogs } from './execution-store.js';
 import { importGitHubRepository } from './github-import.js';
 import { createSession, getSession, touchSession } from './session-store.js';
 import { approveRequest, consumeApproval, requestApproval } from './approval-store.js';
