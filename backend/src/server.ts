@@ -359,6 +359,13 @@ app.post('/api/agent', async (req, res) => {
   }
   try {
     const request: AgentRequest = { ...body, userId: res.locals.user.id, message };
+    if (request.projectId) {
+      const ownedProject = await getProject(request.projectId, res.locals.user.id);
+      if (!ownedProject) {
+        res.status(404).json({ success: false, error: 'project not found or not owned by this user' });
+        return;
+      }
+    }
     const sessionId = typeof request.sessionId === 'string' ? request.sessionId : undefined;
     if (sessionId) {
       const session = await getSession(res.locals.user.id,sessionId);
