@@ -27,6 +27,7 @@ import { createWebhook, listWebhooks, resolveWebhook, verifyWebhookSignature } f
 import { listWorkflows, getWorkflow, createWorkflow, updateWorkflow, deleteWorkflow } from './workflow-store.js';
 import { startPreview, previewInfo, stopPreview, proxyPreview } from './preview-service.js';
 import { createOAuthState, consumeOAuthState, exchangeGitHubCode, githubToken } from './github-auth.js';
+import { connectMeta, createMetaWebhookToken, metaWebhookChallenge, sendFacebookPageMessage, sendWhatsAppMessage, resolveMetaWebhookUser } from './meta-integration.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
@@ -262,7 +263,43 @@ app.post('/api/projects/:id/terminal', async (req, res) => {
   }
 });
 
-app.get('/api/integrations',async(_req,res)=>res.json({success:true,integrations:[...listIntegrations(),{id:'telegram',name:'Telegram',version:'1.0.0',capabilities:['send_message']},{id:'webhook',name:'HTTP Webhook',version:'1.0.0',capabilities:['send_message']}]}));
+app.post('/api/integrations/meta/connect',async(req,res)=>{
+  try{
+    const result=await connectMeta(res.locals.user.id,{
+      pageAccessToken:typeof req.body?.pageAccessToken==='string'?req.body.pageAccessToken.trim():undefined,
+      whatsappAccessToken:typeof req.body?.whatsappAccessToken==='string'?req.body.whatsappAccessToken.trim():undefined,
+      whatsappPhoneNumberId:typeof req.body?.whatsappPhoneNumberId==='string'?req.body.whatsappPhoneNumberId.trim():undefined,
+      verifyToken:typeof req.body?.verifyToken==='string'?req.body.verifyToken.trim():undefined
+    });
+    res.json({success:true,...result,webhookToken:createMetaWebhookToken(res.locals.user.id)});
+  }catch(e){res.status(400).json({success:false,error:e instanceof Error?e.message:'تعذر ربط Meta.'});}
+});
+app.post('/api/integrations/meta/facebook/send',async(req,res)=>{
+  if(!await hasPermission(res.locals.user.id,null,'SEND_MESSAGE')){res.status(403).json({success:false,error:'صلاحية SEND_MESSAGE غير ممنوحة.'});return;}
+  try{res.json({success:true,result:await sendFacebookPageMessage(res.locals.user.id,String(req.body?.recipientId??''),String(req.body?.text??''))});}
+  catch(e){res.status(400).json({success:false,error:e instanceof Error?e.message:'تعذر إرسال رسالة Facebook.'});}
+});
+app.post('/api/integrations/meta/whatsapp/send',async(req,res)=>{
+  if(!await hasPermission(res.locals.user.id,null,'SEND_MESSAGE')){res.status(403).json({success:false,error:'صلاحية SEND_MESSAGE غير ممنوحة.'});return;}
+  try{res.json({success:true,result:await sendWhatsAppMessage(res.locals.user.id,String(req.body?.to??''),String(req.body?.text??''))});}
+  catch(e){res.status(400).json({success:false,error:e instanceof Error?e.message:'تعذر إرسال رسالة WhatsApp.'});}
+});
+app.get('/api/meta/webhook/:token',async(req,res)=>{
+  const userId=resolveMetaWebhookUser(req.params.token);
+  if(!userId){res.status(403).send('invalid webhook token');return;}
+  const challenge=metaWebhookChallenge(userId,String(req.query['hub.mode']??''),String(req.query['hub.verify_token']??''),String(req.query['hub.challenge']??''));
+  if(challenge===null){res.status(403).send('verification failed');return;}
+  res.type('text/plain').send(challenge);
+});
+app.post('/api/meta/webhook/:token',async(req,res)=>{
+  const userId=resolveMetaWebhookUser(req.params.token);
+  if(!userId){res.status(403).json({success:false,error:'invalid webhook token'});return;}
+  // يتم تسليم الحدث إلى سجل الوكيل/Workflow في طبقة لاحقة؛ لا نرسل رداً آلياً غير مصرح به من هنا.
+  await addExecutionLog(null,`Meta webhook received for user ${userId}: ${JSON.stringify(req.body).slice(0,5000)}`,'started');
+  res.json({success:true,received:true});
+});
+
+app.get('/api/integrations',async(_req,res)=>res.json({success:true,integrations:[...listIntegrations(),{id:'telegram',name:'Telegram',version:'1.0.0',capabilities:['send_message']},{id:'facebook-pages',name:'Facebook Pages',version:'1.0.0',capabilities:['receive_messages','send_message']},{id:'whatsapp-cloud',name:'WhatsApp Cloud API',version:'1.0.0',capabilities:['receive_messages','send_message']},{id:'webhook',name:'HTTP Webhook',version:'1.0.0',capabilities:['send_message']}]}));
 app.post('/api/integrations/telegram/connect',async(req,res)=>{try{await saveTelegramBot(res.locals.user.id,String(req.body?.token??''));res.json({success:true,connected:true});}catch(e){res.status(400).json({success:false,error:e instanceof Error?e.message:'تعذر ربط Telegram.'});}});
 app.post('/api/integrations/telegram/send',async(req,res)=>{if(!await hasPermission(res.locals.user.id,null,'SEND_MESSAGE')){res.status(403).json({success:false,error:'صلاحية SEND_MESSAGE غير ممنوحة.'});return;}try{res.json({success:true,result:await telegramSend(res.locals.user.id,String(req.body?.chatId??''),String(req.body?.text??''))});}catch(e){res.status(400).json({success:false,error:e instanceof Error?e.message:'تعذر إرسال الرسالة.'});}});
 app.post('/api/browser/open',async(req,res)=>{if(!await hasPermission(res.locals.user.id,null,'BROWSER_AUTOMATION')){res.status(403).json({success:false,error:'صلاحية BROWSER_AUTOMATION غير ممنوحة.'});return;}try{const sessionId=String(req.body?.sessionId??'');const url=String(req.body?.url??'');const allowed=Array.isArray(req.body?.allowedDomains)?req.body.allowedDomains.filter((x:any)=>typeof x==='string'):[];res.json({success:true,result:await browserOpen(res.locals.user.id,sessionId,url,allowed)});}catch(e){res.status(400).json({success:false,error:e instanceof Error?e.message:'فشل فتح الصفحة.'});}});
